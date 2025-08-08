@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-# Set project name
-project(proj)
+project(MarchingCubes)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -15,17 +14,34 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 # Add dependencies here
 #------------------------------------------------------------------------------------
 
-find_package(SFML 2.5 COMPONENTS graphics QUIET)
-if(NOT SFML_FOUND)
-    message(">>> Installing SFML because it wasn't found")
-    # Install SFML
-    include(FetchContent)
-    FetchContent_Declare(SFML
-        GIT_REPOSITORY https://github.com/SFML/SFML.git
-        GIT_TAG 2.6.x)
-    FetchContent_MakeAvailable(SFML)
-endif()
-target_link_libraries(${PROJECT_NAME} sfml-graphics sfml-window sfml-system)
+find_package(OpenGL REQUIRED)
+
+# Fetch GLFW
+include(FetchContent)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    glfw
+    GIT_REPOSITORY https://github.com/glfw/glfw.git
+    GIT_TAG        3.3.8
+)
+FetchContent_MakeAvailable(glfw)
+
+# Fetch GLM
+FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG        1.0.1
+)
+FetchContent_MakeAvailable(glm)
+
+add_library(glad STATIC external/glad/src/glad.c)
+target_include_directories(glad PUBLIC external/glad/include)
+
+
+target_link_libraries(${PROJECT_NAME} glad OpenGL::GL glfw glm)
 
 #------------------------------------------------------------------------------------
 
@@ -36,5 +52,4 @@ add_custom_target(copy_assets ALL
     COMMENT "Copying assets to the build directory"
 )
 
-# Make sure the 'copy_assets' target is run before building the main executable
 add_dependencies(${PROJECT_NAME} copy_assets)
