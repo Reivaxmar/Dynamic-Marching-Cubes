@@ -1,48 +1,82 @@
 #version 430 core
 
-// layout (binding = 0, rgba32f) uniform image3D tex3D;
-
+// SSBO containing the input point cloud positions.
+// Bound to binding = 0 in the host code.
 layout(std430, binding = 0) buffer Positions {
-    vec3 data[];
+    vec3 data[]; // xyz coordinates of each point
 };
 
+// 3D image storing which voxels have been updated in this pass.
+// Binding = 1, single channel (R32F).
 layout(binding = 1, r32f) uniform image3D update_tex;
+
+// 3D image storing the distance field values.
+// Binding = 2, single channel (R32F).
 layout(binding = 2, r32f) uniform image3D dist_tex;
 
+// Work group configuration: we process 8 points per work group in X.
 layout (local_size_x = 8, local_size_y = 1, local_size_z = 1) in;
 
+// Radius of influence for each point (in voxel units).
 uniform int radius;
+
+// Total number of elements in the point cloud.
 uniform int numElements;
 
 void main() {
+    // Index of the current point we are processing (in the point cloud array).
     int point_idx = int(gl_GlobalInvocationID.x);
-    // If computing an outside point
-    if(point_idx >= numElements) return;
-    ivec3 update_size = imageSize(update_tex);
+
+    // If this thread corresponds to no valid point, exit early.
+    if (point_idx >= numElements) return;
+
+    // Size of the volume (in voxels) from the update texture.
+    ivec3 volumeSize = imageSize(update_tex);
+
+    // Integer voxel position of the point's center.
     ivec3 center = ivec3(data[point_idx]);
 
-    // Write a cube from center-2 to center+2 (inclusive)
+    // Precompute radius squared for cheaper distance comparisons.
+    int rSq = radius * radius;
+
+    // Precompute reciprocal radius to avoid repeated division.
+    float invRadius = 1.0 / float(radius);
+
+    // Iterate over all voxels in the cube around the point.
+    // We skip positions outside the volume immediately.
     for (int dz = -radius; dz <= radius; ++dz) {
+        int z = center.z + dz;
+        if (z < 0 || z >= volumeSize.z) continue; // Skip if out of bounds
+
         for (int dy = -radius; dy <= radius; ++dy) {
+            int y = center.y + dy;
+            if (y < 0 || y >= volumeSize.y) continue; // Skip if out of bounds
+
             for (int dx = -radius; dx <= radius; ++dx) {
-                ivec3 pos = center + ivec3(dx, dy, dz);
-                // Bounds check
-                if (any(lessThan(pos, ivec3(0))) || any(greaterThanEqual(pos, update_size)))
-                    continue;
-                    
-                float dist = length(vec3(dx, dy, dz));
-                // Discard if outside
-                if(dist > float(radius))
-                    continue;
-                // Value is higher (lighter) the further away from the center
-                float val = 1.0 - (dist / float(radius));
-                float old_val = imageLoad(dist_tex, pos).r;
-                // If it doesn't update continue
-                if(val <= old_val)
-                    continue;
-                // Else store the new value and the update
-                imageStore(dist_tex, pos, vec4(val));
-                imageStore(update_tex, pos, vec4(1.0));
+                int x = center.x + dx;
+                if (x < 0 || x >= volumeSize.x) continue; // Skip if out of bounds
+
+                // Compute squared distance from the sphere center.
+                int dSq = dx*dx + dy*dy + dz*dz;
+                if (dSq > rSq) continue; // Outside the sphere radius
+
+                // Convert squared distance to actual distance (only now do sqrt).
+                float dist = sqrt(float(dSq));
+
+                // Map distance to a [0,1] falloff: 1 at center, 0 at edge.
+                float val = 1.0 - (dist * invRadius);
+
+                // Read current voxel value from distance texture.
+                float old_val = imageLoad(dist_tex, ivec3(x, y, z)).r;
+
+                // Only update if the new value is greater (closer to center).
+                if (val <= old_val) continue;
+
+                // Store the new distance field value.
+                imageStore(dist_tex, ivec3(x, y, z), vec4(val, 0.0, 0.0, 0.0));
+
+                // Mark this voxel as updated for later processing.
+                imageStore(update_tex, ivec3(x, y, z), vec4(1.0, 0.0, 0.0, 0.0));
             }
         }
     }

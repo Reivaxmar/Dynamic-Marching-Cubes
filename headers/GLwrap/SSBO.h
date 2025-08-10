@@ -32,6 +32,10 @@ namespace GLwrap {
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bindingPoint, 0);
         }
 
+        GLuint getID() const {
+            return bufferID;
+        }
+
         ~SSBO() {
             glDeleteBuffers(1, &bufferID);
         }

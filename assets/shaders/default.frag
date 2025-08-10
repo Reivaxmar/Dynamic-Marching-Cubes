@@ -1,32 +1,19 @@
-#version 330 core
+#version 450 core
 
+in vec3 vNormal;
 out vec4 FragColor;
 
-uniform vec3 meshColor; // Set this from your application
-uniform vec3 lightPos;  // Light position in world space
-uniform vec3 viewPos;   // Camera position in world space
-in vec3 FragPos;        // Fragment position in world space (from vertex shader)
-in vec3 Normal;         // Normal vector (from vertex shader)
+uniform vec3 skyColor    = vec3(0.6, 0.8, 1.0); // light blue sky
+uniform vec3 groundColor = vec3(0.3, 0.25, 0.2); // brownish ground
 
 void main()
 {
-    // Ambient
-    float ambientStrength = 0.2;
-    vec3 ambient = ambientStrength * meshColor;
+    // Normalize the interpolated normal
+    vec3 N = normalize(vNormal);
 
-    // Diffuse
-    vec3 norm = normalize(Normal);
-    vec3 lightDir = normalize(lightPos - FragPos);
-    float diff = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse = diff * meshColor;
+    // Simple "sky lighting": blend sky color if facing up, ground if facing down
+    float upFactor = clamp(N.y * 0.5 + 0.5, 0.0, 1.0); // map [-1,1] → [0,1]
+    vec3 color = mix(groundColor, skyColor, upFactor);
 
-    // Specular
-    float specularStrength = 0.5;
-    vec3 viewDir = normalize(viewPos - FragPos);
-    vec3 reflectDir = reflect(-lightDir, norm);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
-    vec3 specular = specularStrength * spec * vec3(1.0);
-
-    vec3 result = ambient + diffuse + specular;
-    FragColor = vec4(result, 1.0);
+    FragColor = vec4(color, 1.0);
 }

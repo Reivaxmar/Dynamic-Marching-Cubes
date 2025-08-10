@@ -1,0 +1,118 @@
+#version 430 core
+
+// --- Scalar field input (distance field) ---
+layout(binding = 2, r32f) uniform image3D dist_tex;
+
+// --- Lookup tables for Marching Cubes ---
+// edgeTable: 256 ints, each bitmask telling which edges are intersected
+layout(std430, binding = 3) readonly buffer EdgeTable {
+    int edgeTable[];
+};
+
+// triTable: 256 x 16 ints, each sequence gives the edge indices for up to 5 triangles
+layout(std430, binding = 4) readonly buffer TriTable {
+    int triTable[];
+};
+
+// --- Output vertex buffer ---
+// Each triangle has 3 vertices (vec4 for position, w unused or 1.0)
+layout(std430, binding = 5) buffer VertexBuffer {
+    vec4 vertices[];
+};
+
+// Atomic counter to keep track of number of vertices written
+layout(std430, binding = 6) buffer VertexCounter {
+    uint vertexCounter;
+};
+
+// --- Uniforms ---
+uniform float isoLevel;   // Threshold for surface
+uniform vec3 gridScale;   // World-space scaling of each voxel
+uniform ivec3 gridSize;   // Size of the scalar field in voxels
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+// // Helper: interpolate between two grid points given scalar values
+// vec3 vertexInterp(float isolevel, vec3 p1, vec3 p2, float valp1, float valp2) {
+//     if (abs(isolevel - valp1) < 1e-5) return p1;
+//     if (abs(isolevel - valp2) < 1e-5) return p2;
+//     if (abs(valp1 - valp2) < 1e-5) return p1;
+//     float mu = (isolevel - valp1) / (valp2 - valp1);
+//     return p1 + mu * (p2 - p1);
+// }
+
+// Helper: return the midpoint between two grid points p1 and p2
+vec3 vertexInterp(float isolevel, vec3 p1, vec3 p2, float valp1, float valp2) {
+    return (p1 + p2) * 0.5;
+}
+
+void main() {
+    ivec3 cell = ivec3(gl_GlobalInvocationID);
+
+    // Each thread processes one voxel cell; skip last cell on each axis (needs +1 neighbors)
+    if (any(greaterThanEqual(cell, gridSize - ivec3(1)))) return;
+
+    // Get scalar values for the 8 corners of the cube
+    float cubeVal[8];
+    for (int i = 0; i < 8; i++) {
+        ivec3 cornerPos = cell + ivec3(
+            (i & 1) != 0 ? 1 : 0,
+            (i & 2) != 0 ? 1 : 0,
+            (i & 4) != 0 ? 1 : 0
+        );
+        cubeVal[i] = imageLoad(dist_tex, cornerPos).r;
+    }
+
+    // Determine cube index from scalar values
+    int cubeIndex = 0;
+    for (int i = 0; i < 8; i++) {
+        if (cubeVal[i] < isoLevel) cubeIndex |= (1 << i);
+    }
+
+    // Lookup edges intersected for this cube
+    int edges = edgeTable[cubeIndex];
+    if (edges == 0) return; // No intersections, skip
+
+    // Precompute corner positions in world space
+    vec3 p[8];
+    for (int i = 0; i < 8; i++) {
+        p[i] = (vec3(cell) + vec3(
+            (i & 1) != 0 ? 1.0 : 0.0,
+            (i & 2) != 0 ? 1.0 : 0.0,
+            (i & 4) != 0 ? 1.0 : 0.0
+        )) * gridScale;
+    }
+
+    // Find intersection vertices along edges
+    vec3 vertList[12];
+    if ((edges & 1) != 0)   vertList[0]  = vertexInterp(isoLevel, p[0], p[1], cubeVal[0], cubeVal[1]);
+    if ((edges & 2) != 0)   vertList[1]  = vertexInterp(isoLevel, p[1], p[2], cubeVal[1], cubeVal[2]);
+    if ((edges & 4) != 0)   vertList[2]  = vertexInterp(isoLevel, p[2], p[3], cubeVal[2], cubeVal[3]);
+    if ((edges & 8) != 0)   vertList[3]  = vertexInterp(isoLevel, p[3], p[0], cubeVal[3], cubeVal[0]);
+    if ((edges & 16) != 0)  vertList[4]  = vertexInterp(isoLevel, p[4], p[5], cubeVal[4], cubeVal[5]);
+    if ((edges & 32) != 0)  vertList[5]  = vertexInterp(isoLevel, p[5], p[6], cubeVal[5], cubeVal[6]);
+    if ((edges & 64) != 0)  vertList[6]  = vertexInterp(isoLevel, p[6], p[7], cubeVal[6], cubeVal[7]);
+    if ((edges & 128) != 0) vertList[7]  = vertexInterp(isoLevel, p[7], p[4], cubeVal[7], cubeVal[4]);
+    if ((edges & 256) != 0) vertList[8]  = vertexInterp(isoLevel, p[0], p[4], cubeVal[0], cubeVal[4]);
+    if ((edges & 512) != 0) vertList[9]  = vertexInterp(isoLevel, p[1], p[5], cubeVal[1], cubeVal[5]);
+    if ((edges & 1024) != 0)vertList[10] = vertexInterp(isoLevel, p[2], p[6], cubeVal[2], cubeVal[6]);
+    if ((edges & 2048) != 0)vertList[11] = vertexInterp(isoLevel, p[3], p[7], cubeVal[3], cubeVal[7]);
+
+    // Output triangles using triTable
+    int triBase = cubeIndex * 16;
+    for (int i = 0; i < 16; i += 3) {
+        int a = triTable[triBase + i];
+        if (a == -1) break; // End of triangle list
+
+        int b = triTable[triBase + i + 1];
+        int c = triTable[triBase + i + 2];
+
+        // Reserve space for 3 vertices atomically
+        uint vtxIndex = atomicAdd(vertexCounter, 3);
+
+        // Store vertices in SSBO
+        vertices[vtxIndex + 0] = vec4(vertList[a], 1.0);
+        vertices[vtxIndex + 1] = vec4(vertList[b], 1.0);
+        vertices[vtxIndex + 2] = vec4(vertList[c], 1.0);
+    }
+}
