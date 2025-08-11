@@ -1,118 +1,160 @@
 #version 430 core
 
-// --- Scalar field input (distance field) ---
-layout(binding = 2, r32f) uniform image3D dist_tex;
+// Marching Cubes compute shader
+// Expects:
+// - dist_tex bound at image unit 2 (r32f) (read-only)
+// - edgeTable SSBO bound to binding = 3 (256 ints)
+// - triTable SSBO bound to binding = 4 (256 * 16 ints flattened row-major)
+// - vertex SSBO bound to binding = 5 (vec4 entries where we store generated verts)
+// - counter SSBO bound to binding = 6 (single uint used for atomic allocation)
 
-// --- Lookup tables for Marching Cubes ---
-// edgeTable: 256 ints, each bitmask telling which edges are intersected
-layout(std430, binding = 3) readonly buffer EdgeTable {
-    int edgeTable[];
+// 3D distance field (scalar stored in .r)
+layout(binding = 6, r32f) uniform readonly image3D dist_tex;
+
+// Generated vertices position SSBO (vec4: xyz position, w unused or 1.0)
+layout(std430, binding = 9) buffer Vertices {
+    vec4 verts[]; // output vertices
 };
 
-// triTable: 256 x 16 ints, each sequence gives the edge indices for up to 5 triangles
-layout(std430, binding = 4) readonly buffer TriTable {
-    int triTable[];
+// Generated vertices normal SSBO (vec4: xyz position, w unused or 1.0)
+layout(std430, binding = 10) buffer Normals {
+    vec4 normals[]; // output normals
 };
 
-// --- Output vertex buffer ---
-// Each triangle has 3 vertices (vec4 for position, w unused or 1.0)
-layout(std430, binding = 5) buffer VertexBuffer {
-    vec4 vertices[];
+// Atomic-like counter stored in a SSBO (not GL_ATOMIC_COUNTER_BUFFER).
+layout(std430, binding = 11) buffer Counter {
+    uint counter[]; // counter[0] is the global vertex counter
 };
 
-// Atomic counter to keep track of number of vertices written
-layout(std430, binding = 6) buffer VertexCounter {
-    uint vertexCounter;
+// edgeTable: 256 ints
+layout(std430, binding = 7) buffer EdgeTable {
+    int edgeTableArr[]; // length 256
 };
 
-// --- Uniforms ---
-uniform float isoLevel;   // Threshold for surface
-uniform vec3 gridScale;   // World-space scaling of each voxel
-uniform ivec3 gridSize;   // Size of the scalar field in voxels
+// triTable: flattened 256 x 16 ints (row-major): triTableArr[cubeIndex*16 + i]
+layout(std430, binding = 8) buffer TriTable {
+    int triTableArr[]; // length 256 * 16
+};
 
-layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+// Marching parameters from the host
+uniform float isoLevel;        // isovalue threshold
+uniform ivec3 gridSize;        // number of voxels in x,y,z (volume dims)
+uniform vec3 gridScale;        // scale to convert voxel coords -> world coords
 
-// // Helper: interpolate between two grid points given scalar values
-// vec3 vertexInterp(float isolevel, vec3 p1, vec3 p2, float valp1, float valp2) {
-//     if (abs(isolevel - valp1) < 1e-5) return p1;
-//     if (abs(isolevel - valp2) < 1e-5) return p2;
-//     if (abs(valp1 - valp2) < 1e-5) return p1;
-//     float mu = (isolevel - valp1) / (valp2 - valp1);
-//     return p1 + mu * (p2 - p1);
-// }
+// Work group: 8^3 as host dispatches GRIDSIZE/8
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
-// Helper: return the midpoint between two grid points p1 and p2
-vec3 vertexInterp(float isolevel, vec3 p1, vec3 p2, float valp1, float valp2) {
-    return (p1 + p2) * 0.5;
+// corner offsets for a unit cell at integer voxel coordinates.
+// Corner ordering follows standard Marching Cubes (0..7).
+const ivec3 cornerOffset[8] = ivec3[8](
+    ivec3(0,0,0), // 0
+    ivec3(1,0,0), // 1
+    ivec3(1,1,0), // 2
+    ivec3(0,1,0), // 3
+    ivec3(0,0,1), // 4
+    ivec3(1,0,1), // 5
+    ivec3(1,1,1), // 6
+    ivec3(0,1,1)  // 7
+);
+
+// edge -> corner indices (which two corners form each of the 12 edges)
+const ivec2 edgeConn[12] = ivec2[12](
+    ivec2(0,1), // edge 0
+    ivec2(1,2), // edge 1
+    ivec2(2,3), // edge 2
+    ivec2(3,0), // edge 3
+    ivec2(4,5), // edge 4
+    ivec2(5,6), // edge 5
+    ivec2(6,7), // edge 6
+    ivec2(7,4), // edge 7
+    ivec2(0,4), // edge 8
+    ivec2(1,5), // edge 9
+    ivec2(2,6), // edge 10
+    ivec2(3,7)  // edge 11
+);
+
+// interpolate along an edge between two voxel corner positions given scalar values
+vec3 vertexInterp(float iso, vec3 p1, vec3 p2, float valp1, float valp2) {
+    // avoid division by zero; if values are very close return midpoint
+    float denom = valp2 - valp1;
+    if (abs(denom) < 1e-6) return (p1 + p2) * 0.5;
+    float t = (iso - valp1) / denom;
+    return p1 + t * (p2 - p1);
 }
 
 void main() {
-    ivec3 cell = ivec3(gl_GlobalInvocationID);
+    // Each invocation corresponds to a cell origin at integer voxel coords
+    ivec3 cell = ivec3(gl_GlobalInvocationID.xyz);
 
-    // Each thread processes one voxel cell; skip last cell on each axis (needs +1 neighbors)
-    if (any(greaterThanEqual(cell, gridSize - ivec3(1)))) return;
+    // We process cells in range [0 .. gridSize-2] because each cell uses +1 in each axis
+    if (cell.x >= gridSize.x - 1 || cell.y >= gridSize.y - 1 || cell.z >= gridSize.z - 1) {
+        return;
+    }
 
-    // Get scalar values for the 8 corners of the cube
+    // Sample scalar values at the 8 corners
     float cubeVal[8];
-    for (int i = 0; i < 8; i++) {
-        ivec3 cornerPos = cell + ivec3(
-            (i & 1) != 0 ? 1 : 0,
-            (i & 2) != 0 ? 1 : 0,
-            (i & 4) != 0 ? 1 : 0
-        );
-        cubeVal[i] = imageLoad(dist_tex, cornerPos).r;
+    vec3 cornerPosWorld[8];
+    for (int i = 0; i < 8; ++i) {
+        ivec3 c = cell + cornerOffset[i];
+        // read scalar from distance texture (.r)
+        cubeVal[i] = imageLoad(dist_tex, c).r;
+        // compute world position of corner
+        vec3 p = vec3(c) * gridScale;
+        cornerPosWorld[i] = p;
     }
 
-    // Determine cube index from scalar values
+    // Build cube index
     int cubeIndex = 0;
-    for (int i = 0; i < 8; i++) {
-        if (cubeVal[i] < isoLevel) cubeIndex |= (1 << i);
+    for (int i = 0; i < 8; ++i) {
+        if (cubeVal[i] < isoLevel) { // note: consistent with your distance being higher near center
+            cubeIndex |= (1 << i);
+        }
     }
 
-    // Lookup edges intersected for this cube
-    int edges = edgeTable[cubeIndex];
-    if (edges == 0) return; // No intersections, skip
-
-    // Precompute corner positions in world space
-    vec3 p[8];
-    for (int i = 0; i < 8; i++) {
-        p[i] = (vec3(cell) + vec3(
-            (i & 1) != 0 ? 1.0 : 0.0,
-            (i & 2) != 0 ? 1.0 : 0.0,
-            (i & 4) != 0 ? 1.0 : 0.0
-        )) * gridScale;
+    // Look up edges intersected
+    int edgeMask = edgeTableArr[cubeIndex]; // 0..4095 mask
+    if (edgeMask == 0) {
+        // no triangles for this cell
+        return;
     }
 
-    // Find intersection vertices along edges
-    vec3 vertList[12];
-    if ((edges & 1) != 0)   vertList[0]  = vertexInterp(isoLevel, p[0], p[1], cubeVal[0], cubeVal[1]);
-    if ((edges & 2) != 0)   vertList[1]  = vertexInterp(isoLevel, p[1], p[2], cubeVal[1], cubeVal[2]);
-    if ((edges & 4) != 0)   vertList[2]  = vertexInterp(isoLevel, p[2], p[3], cubeVal[2], cubeVal[3]);
-    if ((edges & 8) != 0)   vertList[3]  = vertexInterp(isoLevel, p[3], p[0], cubeVal[3], cubeVal[0]);
-    if ((edges & 16) != 0)  vertList[4]  = vertexInterp(isoLevel, p[4], p[5], cubeVal[4], cubeVal[5]);
-    if ((edges & 32) != 0)  vertList[5]  = vertexInterp(isoLevel, p[5], p[6], cubeVal[5], cubeVal[6]);
-    if ((edges & 64) != 0)  vertList[6]  = vertexInterp(isoLevel, p[6], p[7], cubeVal[6], cubeVal[7]);
-    if ((edges & 128) != 0) vertList[7]  = vertexInterp(isoLevel, p[7], p[4], cubeVal[7], cubeVal[4]);
-    if ((edges & 256) != 0) vertList[8]  = vertexInterp(isoLevel, p[0], p[4], cubeVal[0], cubeVal[4]);
-    if ((edges & 512) != 0) vertList[9]  = vertexInterp(isoLevel, p[1], p[5], cubeVal[1], cubeVal[5]);
-    if ((edges & 1024) != 0)vertList[10] = vertexInterp(isoLevel, p[2], p[6], cubeVal[2], cubeVal[6]);
-    if ((edges & 2048) != 0)vertList[11] = vertexInterp(isoLevel, p[3], p[7], cubeVal[3], cubeVal[7]);
+    // Compute interpolated vertices for each possible edge (0..11)
+    // We only compute ones present in edgeMask.
+    vec3 edgeVert[12];
+    for (int e = 0; e < 12; ++e) {
+        if ((edgeMask & (1 << e)) != 0) {
+            ivec2 conn = edgeConn[e];
+            int c1 = conn.x;
+            int c2 = conn.y;
+            edgeVert[e] = vertexInterp(isoLevel, cornerPosWorld[c1], cornerPosWorld[c2], cubeVal[c1], cubeVal[c2]);
+        }
+    }
 
-    // Output triangles using triTable
+    // Build triangles using triTable row for this cubeIndex.
     int triBase = cubeIndex * 16;
-    for (int i = 0; i < 16; i += 3) {
-        int a = triTable[triBase + i];
-        if (a == -1) break; // End of triangle list
+    // triTable entries are edge indices forming triangles in groups of 3, terminated by -1.
+    for (int t = 0; t < 16; t += 3) {
+        int e0 = triTableArr[triBase + t + 0];
+        if (e0 == -1) break;
+        int e1 = triTableArr[triBase + t + 1];
+        int e2 = triTableArr[triBase + t + 2];
+        // Reserve 3 slots at once (atomic), so a single atomicAdd gives contiguous triangle vertices.
+        uint baseIndex = atomicAdd(counter[0], 3u);
+        
+        // Write the triangle vertices
+        verts[baseIndex + 0] = vec4(edgeVert[e0], 1.0);
+        verts[baseIndex + 1] = vec4(edgeVert[e1], 1.0);
+        verts[baseIndex + 2] = vec4(edgeVert[e2], 1.0);
 
-        int b = triTable[triBase + i + 1];
-        int c = triTable[triBase + i + 2];
+        // Calculate face normal:
+        vec3 p0 = edgeVert[e0];
+        vec3 p1 = edgeVert[e1];
+        vec3 p2 = edgeVert[e2];
+        vec3 faceNormal = normalize(cross(p1 - p0, p2 - p0));
 
-        // Reserve space for 3 vertices atomically
-        uint vtxIndex = atomicAdd(vertexCounter, 3);
-
-        // Store vertices in SSBO
-        vertices[vtxIndex + 0] = vec4(vertList[a], 1.0);
-        vertices[vtxIndex + 1] = vec4(vertList[b], 1.0);
-        vertices[vtxIndex + 2] = vec4(vertList[c], 1.0);
+        // Write the normal per vertex (flat shading)
+        normals[baseIndex + 0] = vec4(faceNormal, 0.0);
+        normals[baseIndex + 1] = vec4(faceNormal, 0.0);
+        normals[baseIndex + 2] = vec4(faceNormal, 0.0);
     }
 }

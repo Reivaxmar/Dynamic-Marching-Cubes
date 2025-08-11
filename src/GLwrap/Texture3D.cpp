@@ -51,6 +51,10 @@ namespace GLwrap {
     //     glBindTexture(GL_TEXTURE_3D, 0);
     // }
 
+    void Texture3D::clear(const glm::vec4& color) {
+        glClearTexImage(textureID, 0, format, type, glm::value_ptr(color));
+    }
+
     void Texture3D::setData(const void* data, glm::ivec3 offset, glm::ivec3 region) {
         if (region == glm::ivec3(0)) {
             region = size; // Default to full texture

@@ -1,5 +1,5 @@
-#ifndef SHADER_CLASS_H
-#define SHADER_CLASS_H
+#ifndef GLWRAP_SHADER_H
+#define GLWRAP_SHADER_H
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -22,7 +22,7 @@ namespace GLwrap {
     private:
         void compileErrors(unsigned int shader, const char* type);
     };
-}
+} // namespace GLwrap
 
 
-#endif // SHADER_CLASS_H
+#endif // GLWRAP_SHADER_H

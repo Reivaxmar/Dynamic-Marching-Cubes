@@ -1,19 +1,23 @@
 #version 450 core
 
 in vec3 vNormal;
-out vec4 FragColor;
+in vec3 FragPos;
 
-uniform vec3 skyColor    = vec3(0.6, 0.8, 1.0); // light blue sky
-uniform vec3 groundColor = vec3(0.3, 0.25, 0.2); // brownish ground
+uniform vec3 lightPos;
+uniform vec3 viewPos;
+
+out vec4 FragColor;
 
 void main()
 {
-    // Normalize the interpolated normal
-    vec3 N = normalize(vNormal);
+    vec3 norm = normalize(vNormal);
+    vec3 lightDir = normalize(lightPos - FragPos);
+    float diff = max(dot(norm, lightDir), 0.0);
 
-    // Simple "sky lighting": blend sky color if facing up, ground if facing down
-    float upFactor = clamp(N.y * 0.5 + 0.5, 0.0, 1.0); // map [-1,1] → [0,1]
-    vec3 color = mix(groundColor, skyColor, upFactor);
+    vec3 diffuse = diff * vec3(1.0, 1.0, 1.0);  // White light diffuse color
+    vec3 ambient = 0.2 * vec3(1.0, 1.0, 1.0);
+
+    vec3 color = ambient + diffuse;
 
     FragColor = vec4(color, 1.0);
 }

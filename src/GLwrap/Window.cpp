@@ -3,9 +3,9 @@
 namespace GLwrap
 {
     
-    Window::Window(int majorVersion, int minorVersion, int width, int height,
+    Window::Window(int majorVersion, int minorVersion, glm::ivec2 size,
              const std::string& title, bool visible)
-             : window(nullptr)
+             : window(nullptr), size(size)
     {
         if (!glfwInit()) {
             throw std::runtime_error("Failed to initialize GLFW");
@@ -16,7 +16,7 @@ namespace GLwrap
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_VISIBLE, visible ? GLFW_TRUE : GLFW_FALSE);
 
-        window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
+        window = glfwCreateWindow(size.x, size.y, title.c_str(), nullptr, nullptr);
         if (!window) {
             glfwTerminate();
             throw std::runtime_error("Failed to create GLFW window");
@@ -36,6 +36,10 @@ namespace GLwrap
             glfwDestroyWindow(window);
         }
         glfwTerminate();
+    }
+
+    glm::ivec2 Window::getSize() const {
+        return size;
     }
 
     GLFWwindow* Window::getWindow() const {

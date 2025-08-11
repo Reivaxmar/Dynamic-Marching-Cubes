@@ -1,8 +1,9 @@
-#ifndef TEXTURE3D_CLASS_H
-#define TEXTURE3D_CLASS_H
+#ifndef GLWRAP_TEXTURE3D_H
+#define GLWRAP_TEXTURE3D_H
 
 #include <glad/glad.h>
-#include <glm/vec3.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 namespace GLwrap {
     class Texture3D {
@@ -32,6 +33,7 @@ namespace GLwrap {
         void bindImageUnit(GLuint unit, GLenum access) const;
     
         // Upload data to the texture (replaces entire texture)
+        void clear(const glm::vec4& color = glm::vec4(0));
         // void setData(const void* data);
         void setData(const void* data, glm::ivec3 offset, glm::ivec3 region);
         void getData(void* outData, glm::ivec3 offset, glm::ivec3 region) const;
@@ -49,7 +51,7 @@ namespace GLwrap {
         GLenum format;
         GLenum type;
     };
-}
+} // namespace GLwrap
 
 
-#endif
+#endif // GLWRAP_TEXTURE3D_H

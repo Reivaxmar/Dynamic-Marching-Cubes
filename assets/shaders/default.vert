@@ -7,6 +7,7 @@ uniform mat4 uMVP = mat4(1.0);
 uniform mat4 uModel = mat4(1.0); // for transforming normals if needed
 
 out vec3 vNormal; // pass to fragment shader
+out vec3 FragPos;
 
 void main()
 {
@@ -15,4 +16,6 @@ void main()
 
     // Transform normal (ignore translation, just rotation/scale)
     vNormal = mat3(uModel) * inNormal;
+
+    FragPos = vec3(uModel * vec4(inPos, 1.0));
 }
