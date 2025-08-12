@@ -9,6 +9,13 @@ file(GLOB_RECURSE SOURCES src/*.cpp)
 include_directories(headers /usr/include)
 add_executable(${PROJECT_NAME} ${SOURCES})
 
+# Add network test
+add_executable(network_send_test tests/RandomData.cpp)
+
+# Register with CTest
+add_test(NAME NetworkSendTest COMMAND network_send_test)
+
+
 
 #------------------------------------------------------------------------------------
 # Add dependencies here
@@ -37,11 +44,24 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
-add_library(glad STATIC external/glad/src/glad.c)
-target_include_directories(glad PUBLIC external/glad/include)
+# Fetch asio
+FetchContent_Declare(
+  asio
+  GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
+  GIT_TAG master
+)
+FetchContent_MakeAvailable(asio)
 
+# Add GLAD
+add_library(glad STATIC external/src/glad.c)
+target_include_directories(glad PUBLIC external/include ${asio_SOURCE_DIR}/asio/include)
 
+# Link project libraries
 target_link_libraries(${PROJECT_NAME} glad OpenGL::GL glfw glm)
+
+# Add tests dependencies
+target_include_directories(network_send_test PUBLIC ${asio_SOURCE_DIR}/asio/include)
+target_link_libraries(network_send_test glm)
 
 #------------------------------------------------------------------------------------
 
@@ -53,3 +73,5 @@ add_custom_target(copy_assets ALL
 )
 
 add_dependencies(${PROJECT_NAME} copy_assets)
+
+enable_testing()

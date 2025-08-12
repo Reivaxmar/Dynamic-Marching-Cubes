@@ -23,10 +23,13 @@ namespace GLwrap
         GLFWwindow* getWindow() const;
         bool shouldClose() const;
         void swapBuffers() const;
-        void pollEvents() const;
+        void pollEvents();
+
+        float deltaTime;
     private:
         GLFWwindow* window;
         glm::ivec2 size;
+        double prevTime;
     };
 
 } // namespace GLwrap

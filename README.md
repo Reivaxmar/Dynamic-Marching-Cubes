@@ -37,3 +37,5 @@ There is no need to have them installed, CMake will do it:
 ## TODOs
 - [x] Implement hello world
 - [ ] Do everything else
+- [ ] Think of adding chunks or removing updates
+- [ ] Update README.md

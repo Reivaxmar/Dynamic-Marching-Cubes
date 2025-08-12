@@ -14,7 +14,7 @@ DynamicMC::DynamicMC()
     {
     
     // Bind the textures
-    update_tex.bindImageUnit(5, GL_WRITE_ONLY);
+    update_tex.bindImageUnit(5, GL_READ_WRITE);
     dist_tex.bindImageUnit(6, GL_READ_WRITE);
     
     // Reset the counter
@@ -35,8 +35,7 @@ DynamicMC::DynamicMC()
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
 
-    // If you use per-vertex attributes beyond position, set them here.
-    // Unbind VAO to be tidy
+    // Unbind
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
@@ -73,7 +72,7 @@ void DynamicMC::update(const std::vector<glm::vec4>& point_cloud) {
     // Run the marching cubes shader
     mcShader.Run(GRIDSIZE / 8);
 
-    // ------- memory barrier so SSBO writes are visible to CPU/GPU copies/readbacks -------
+    // Memory barrier to read SSBOs
     glMemoryBarrier(
         GL_SHADER_STORAGE_BARRIER_BIT |
         GL_BUFFER_UPDATE_BARRIER_BIT |

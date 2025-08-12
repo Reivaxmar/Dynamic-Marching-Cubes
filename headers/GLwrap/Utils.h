@@ -6,6 +6,7 @@
 #include <sstream>
 #include <string>
 #include <random>
+#include <iomanip>
 
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -23,6 +24,8 @@ namespace GLwrap {
         const std::vector<glm::vec4>& points,
         const std::vector<glm::vec4>& normals
     );
+
+    std::string floatprec(float value, int numDigits);
 } // namespace GLwrap
 
 

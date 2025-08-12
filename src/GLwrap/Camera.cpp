@@ -10,22 +10,22 @@ namespace GLwrap
 
     Camera::~Camera() {}
 
-    void Camera::Update(const Window& window, float deltaTime) {
+    void Camera::Update(const Window& window) {
         // --- Movement ---
         glm::vec3 dirHorizontal = glm::normalize(glm::vec3(direction.x, 0.0f, direction.z));
 
         if (glfwGetKey(window.getWindow(), GLFW_KEY_W) == GLFW_PRESS)
-            position += dirHorizontal * speed * deltaTime;
+            position += dirHorizontal * speed * window.deltaTime;
         if (glfwGetKey(window.getWindow(), GLFW_KEY_S) == GLFW_PRESS)
-            position -= dirHorizontal * speed * deltaTime;
+            position -= dirHorizontal * speed * window.deltaTime;
         if (glfwGetKey(window.getWindow(), GLFW_KEY_A) == GLFW_PRESS)
-            position -= glm::normalize(glm::cross(direction, up)) * speed * deltaTime;
+            position -= glm::normalize(glm::cross(direction, up)) * speed * window.deltaTime;
         if (glfwGetKey(window.getWindow(), GLFW_KEY_D) == GLFW_PRESS)
-            position += glm::normalize(glm::cross(direction, up)) * speed * deltaTime;
+            position += glm::normalize(glm::cross(direction, up)) * speed * window.deltaTime;
         if (glfwGetKey(window.getWindow(), GLFW_KEY_Q) == GLFW_PRESS)
-            position -= speed * up * deltaTime;
+            position -= speed * up * window.deltaTime;
         if (glfwGetKey(window.getWindow(), GLFW_KEY_E) == GLFW_PRESS)
-            position += speed * up * deltaTime;
+            position += speed * up * window.deltaTime;
 
         // --- Rotation ---
         if(glfwGetMouseButton(window.getWindow(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
@@ -46,15 +46,28 @@ namespace GLwrap
             float rotX = sensitivity * (float)(mouseY - (window.getSize().y / 2)) / window.getSize().y;
             float rotY = sensitivity * (float)(mouseX - (window.getSize().x / 2)) / window.getSize().x;
 
-		    glm::vec3 newDir = glm::rotate(direction, glm::radians(-rotX), glm::normalize(glm::cross(direction, up)));
-            
-            // Check if new rotation is valid
-            if (abs(glm::angle(newDir, up) - glm::radians(90.0f)) <= glm::radians(89.0f)) {
-                direction = newDir;
-            }
+		    // pitch = asin(y)
+            float pitch = glm::degrees(asinf(direction.y));
 
-            // Rotates the Orientation left and right
-            direction = glm::rotate(direction, glm::radians(-rotY), up);
+            // yaw = atan2(z, x)
+            float yaw = glm::degrees(atan2(direction.z, direction.x));
+
+            // Update pitch and yaw with mouse movement
+            pitch += -rotX;
+            yaw += rotY;
+
+            // Clamp pitch to avoid flipping
+            if (pitch > 89.0f) pitch = 89.0f;
+            if (pitch < -89.0f) pitch = -89.0f;
+
+            // Recalculate direction vector from updated pitch and yaw
+            glm::vec3 newDirection;
+            newDirection.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+            newDirection.y = sin(glm::radians(pitch));
+            newDirection.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+
+            direction = glm::normalize(newDirection);
+
 
             // Sets mouse cursor to the middle of the screen so that it doesn't end up roaming around
             glfwSetCursorPos(window.getWindow(), (window.getSize().x / 2), (window.getSize().y / 2));

@@ -3,7 +3,7 @@
 
 #include <glm/vec3.hpp>
 
-const glm::ivec3 GRIDSIZE = { 64, 64, 64 };
+const glm::ivec3 GRIDSIZE = { 128, 128, 128 };
 const float ZERO = 0.0f;
 const float RADIUS_SIZE = 4.0f;
 const int EXPECTED_CAPACITY = 50000; // 50k points per frame

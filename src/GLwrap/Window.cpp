@@ -5,7 +5,7 @@ namespace GLwrap
     
     Window::Window(int majorVersion, int minorVersion, glm::ivec2 size,
              const std::string& title, bool visible)
-             : window(nullptr), size(size)
+             : window(nullptr), size(size), prevTime(0)
     {
         if (!glfwInit()) {
             throw std::runtime_error("Failed to initialize GLFW");
@@ -54,7 +54,13 @@ namespace GLwrap
         glfwSwapBuffers(window);
     }
 
-    void Window::pollEvents() const {
+    void Window::pollEvents() {
+        // Recalculate deltaTime
+        double curTime = glfwGetTime();
+        deltaTime = curTime - prevTime;
+        prevTime = curTime;
+
+        // Poll events
         glfwPollEvents();
     }
 

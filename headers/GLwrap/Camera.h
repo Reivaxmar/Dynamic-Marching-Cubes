@@ -11,6 +11,8 @@
 #include <glm/gtx/rotate_vector.hpp>
 #include <glm/gtx/vector_angle.hpp>
 
+#include <cmath>
+
 namespace GLwrap
 {
     class Camera {
@@ -18,7 +20,7 @@ namespace GLwrap
         Camera(glm::vec3 position = glm::vec3(0));
         ~Camera();
 
-        void Update(const Window& window, float deltaTime);
+        void Update(const Window& window);
         void UploadMatrix(const Shader& shader, std::string uniform);
 
         glm::vec3 getPosition() const;

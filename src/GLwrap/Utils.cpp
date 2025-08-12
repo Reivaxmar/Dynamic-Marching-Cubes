@@ -59,5 +59,13 @@ namespace GLwrap
 		objFile.close();
 		std::cout << "Saved mesh to output.obj\n";
 	}
+
+	std::string floatprec(float value, int numDigits)
+	{
+		std::ostringstream oss;
+		oss << std::fixed << std::setprecision(numDigits) << value;
+		return oss.str();
+	}
+
 } // namespace GLwrap
 
