@@ -1,107 +1,100 @@
 #include "NetReceiver.h"
 
 NetReceiver::NetReceiver(unsigned short port)
-    : acceptor(io, tcp::endpoint(tcp::v4(), port))
+    : work_guard(asio::make_work_guard(io))
+    , acceptor(io, tcp::endpoint(tcp::v4(), port))
     , socket(io)
-    , dataThread([this, port]() { getDataThread(port); })
+    , port(port)
 {
-    
+    startAccept(); // post accept before io.run() starts
+    dataThread = std::thread([this]() { io.run(); });
 }
 
 NetReceiver::~NetReceiver() {
+    std::cout << "Exiting\n";
     done = true;
-    dataThread.join();
+    
+    work_guard.reset();
+    
+    // Close connection
+    asio::post(io, [this]() {
+        asio::error_code ec;
+        acceptor.close(ec);
+        socket.close(ec);
+    });
+
+    // Close thread
+    if (dataThread.joinable())
+        dataThread.join();
 }
 
 void NetReceiver::GetPointCloud(std::vector<glm::vec4>& in) {
     // Lock the queue
     std::unique_lock<std::mutex> lock(queueMutex);
     // Check if there's anything new
-    if(!PCqueue.empty()) {
-        in = std::move(PCqueue.front());
+    if (!PCqueue.empty()) {
+        in.swap(PCqueue.front());
         PCqueue.pop();
     }
 }
 
-void NetReceiver::getDataThread(unsigned short port) {
+bool NetReceiver::readPointCloud() {
 
-    acceptor.non_blocking(true);
-
-    // Start listening
-    std::cout << "[Network] Listening on port " << port << "...\n";
-    // Loop until accepted
-    while(!done) {
-        asio::error_code ec;
-        acceptor.accept(socket, ec);
-        if (!ec) {
-            std::cout << "[Network] Client connected: " << socket.remote_endpoint() << "\n";
-            break;
-        }
-        if (ec != asio::error::would_block) {
-            std::cerr << "[Network] Accept error: " << ec.message() << "\n";
-            return;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    // Read header
+    char magic[4];
+    if (!read_exact(socket, magic, 4)) return false;
+    if (std::memcmp(magic, "PCLD", 4) != 0) {
+        std::cerr << "[Network] Invalid magic, closing. It was: " << magic << "\n";
+        return false;
     }
 
-
-    while(!done) {
-
-        // Read header
-        char magic[4];
-        if (!read_exact(socket, magic, 4)) break;
-        if (std::memcmp(magic, "PCLD", 4) != 0) {
-            std::cerr << "[Network] Invalid magic, closing.\n";
-            break;
-        }
-
-        // Read version
-        uint8_t version;
-        if (!read_exact(socket, &version, 1)) break;
-        if (version != 1) {
-            std::cerr << "[Network] Unsupported version " << int(version) << "\n";
-            break;
-        }
-
-        // Read frame ID
-        uint32_t netFrameID;
-        if (!read_exact(socket, &netFrameID, 4)) break;
-        uint32_t frameID = ntohl(netFrameID);
-
-        // Read timestamp
-        uint64_t netTimestampBits;
-        if (!read_exact(socket, &netTimestampBits, 8)) break;
-        netTimestampBits = be64toh(netTimestampBits);
-        double timestamp;
-        std::memcpy(&timestamp, &netTimestampBits, sizeof(timestamp));
-
-        // Read point cloud count
-        uint32_t netPointCount;
-        if (!read_exact(socket, &netPointCount, 4)) break;
-        uint32_t pointCount = ntohl(netPointCount);
-
-        // Read points
-        std::vector<glm::vec3> points3(pointCount);
-        if (!read_exact(socket, points3.data(), pointCount * sizeof(glm::vec3))) break;
-
-        // Convert to vec4
-        std::vector<glm::vec4> points4;
-        points4.reserve(pointCount);
-        for (const auto& p : points3) {
-            points4.emplace_back(p, 1.0f);
-        }
-
-        // Push to queue
-        {
-            std::lock_guard<std::mutex> lock(queueMutex);
-            PCqueue.push(std::move(points4));
-        }
-
-        // Print information
-        std::cout << "[Network] Frame " << frameID
-                  << " @ t=" << timestamp
-                  << "s, points=" << pointCount << "\n";
+    // Read version
+    uint8_t version;
+    if (!read_exact(socket, &version, 1)) return false;
+    if (version != 1) {
+        std::cerr << "[Network] Unsupported version " << int(version) << "\n";
+        return false;
     }
+
+    // Read frame ID
+    uint32_t netFrameID;
+    if (!read_exact(socket, &netFrameID, 4)) return false;
+    uint32_t frameID = ntohl(netFrameID);
+
+    // Read timestamp
+    uint64_t netTimestampBits;
+    if (!read_exact(socket, &netTimestampBits, 8)) return false;
+    netTimestampBits = be64toh(netTimestampBits);
+    double timestamp;
+    std::memcpy(&timestamp, &netTimestampBits, sizeof(timestamp));
+
+    // Read point cloud count
+    uint32_t netPointCount;
+    if (!read_exact(socket, &netPointCount, 4)) return false;
+    uint32_t pointCount = ntohl(netPointCount);
+
+    // Read points
+    std::vector<glm::vec3> points3(pointCount);
+    if (!read_exact(socket, points3.data(), pointCount * sizeof(glm::vec3))) return false;
+
+    // Convert to vec4
+    std::vector<glm::vec4> points4;
+    points4.reserve(pointCount);
+    for (const auto& p : points3) {
+        points4.emplace_back(p, 1.0f);
+    }
+
+    // Push to queue
+    {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        PCqueue.push(std::move(points4));
+    }
+
+    // Print information
+    std::cout << "[Network] Frame " << frameID
+              << " @ t=" << timestamp
+              << "s, points=" << pointCount << "\n";
+    return true;
 }
 
 inline bool NetReceiver::read_exact(tcp::socket& socket, void* buffer, std::size_t length) {
@@ -114,4 +107,30 @@ inline bool NetReceiver::read_exact(tcp::socket& socket, void* buffer, std::size
         total += n;
     }
     return total == length;
+}
+
+void NetReceiver::startAccept() {
+    std::cout << "[Network] Starting async_accept...\n";
+    // Start an async connection accept
+    acceptor.async_accept(socket, 
+        [this](asio::error_code ec) {
+            if (done) return;
+            if (!ec) {
+                std::cout << "[Network] Client connected: "
+                          << socket.remote_endpoint() << "\n";
+                startReadLoop();
+            } else {
+                std::cerr << "[Network] async_accept fired: " << ec.message() << "\n";
+            }
+        }
+    );
+}
+
+void NetReceiver::startReadLoop() {
+    // Once connected, read the data
+    std::thread([this]() {
+        while (!done) {
+            if (!readPointCloud()) break;
+        }
+    }).detach();
 }

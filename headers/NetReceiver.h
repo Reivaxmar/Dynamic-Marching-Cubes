@@ -27,9 +27,13 @@ private:
     asio::io_context io;
     tcp::acceptor acceptor;
     tcp::socket socket;
+    asio::executor_work_guard<asio::io_context::executor_type> work_guard;
+    unsigned short port;
 
-    void getDataThread(unsigned short port);
+    bool readPointCloud();
     inline bool read_exact(tcp::socket& socket, void* buffer, std::size_t length);
+    void startAccept();
+    void startReadLoop();
 
 
 };

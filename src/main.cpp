@@ -14,12 +14,11 @@
 #include "GLwrap/Camera.h"
 
 int main() {
-    // Create the window
-    GLwrap::Window window(4, 5, {1600, 900}, "Dynamic Marching Cubes");
-    // glfwSwapInterval(0); // Remove vSync
-
     // Network handler for getting data from the scanner
     NetReceiver network(5000);
+    
+    // Create the window
+    GLwrap::Window window(4, 5, {1600, 900}, "Dynamic Marching Cubes");
 
     // Dynamic Marching Cubes mesh reconstructor
     DynamicMC MarchingCubes;

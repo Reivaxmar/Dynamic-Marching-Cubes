@@ -15,7 +15,7 @@ int main() {
         asio::io_context io;
         asio::ip::tcp::socket socket(io);
 
-        asio::ip::tcp::endpoint endpoint(asio::ip::make_address("0.0.0.0"), 5000);
+        asio::ip::tcp::endpoint endpoint(asio::ip::make_address("127.0.0.1"), 5000);
 
         socket.connect(endpoint);
 
@@ -65,16 +65,13 @@ int main() {
             }
 
             // Send the data
+            std::cout << "Sending data...\n";
             asio::write(socket, asio::buffer(buffer));
 
             frameID++;
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
-        // std::string message = "Hello from CMake test!";
-        // asio::write(socket, asio::buffer(message));
-
-        // std::cout << "Data sent successfully\n";
         return 0; // success
     } catch (std::exception &e) {
         std::cerr << "Test failed: " << e.what() << "\n";
