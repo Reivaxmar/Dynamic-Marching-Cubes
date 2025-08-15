@@ -1,41 +1,55 @@
-# Project title
-This is just a template for making projects. Feel free to use.
+# Dynamic 3D scanner mesh generation
+This project is the server program where it receives data from a 3D scanner and dynamically
+updates a 3D mesh with Marching Cubes.
+
+This project is part of my '_Treball de Recerca_', a project that must be done in Catalonia for graduating '_Batxillerat_' (last two high school years)
+
+## Screenshots
+_Add screenshots..._
 
 ## Usage
 ### Prerequisites
 Just some basic stuff:
 - Modern C/C++ compiler
-- CMake installed
+- [CMake](https://cmake.org/download/) installed
+- Compatibilty with OpenGL 4.5
 
 ### Building the project
-You can download a zip file or use git:
+Download a zip file or clone the repository:
 ```bash
-> mkdir ./project
-> cd ./project
 > git clone \
-    ADD_GIT_LINK \
-    project_name
-> cd project_name
+    https://github.com/Reivaxmar/TR-Dynamic-Marching-Cubes.git \
+    TR-Dynamic-Marching-Cubes
+> cd TR-Dynamic-Marching-Cubes
 ```
 
-Great! Now you have the project, now you just need to build it:
+Great! Now that the project is downloaded, it must be built:
 ```bash
 > bash ./build.sh
-> make
-> ./proj
-Hello, world!
+> ./MarchingCubes
 ```
 
-Now your project should be up and running.
+Now the server should be up and running.
 
 
 ## External libraries
 There is no need to have them installed, CMake will do it:
-- Dep1
-- Dep2
+- [GLAD](https://glad.dav1d.de/) for loading OpenGL
+- [GLFW](https://www.glfw.org/) for OpenGL window managing
+- [GLM](https://github.com/g-truc/glm) for 3D math utils
+- [asio](https://github.com/chriskohlhoff/asio) for networking
 
 ## TODOs
-- [x] Implement hello world
-- [ ] Do everything else
-- [ ] Think of adding chunks or removing updates
-- [ ] Update README.md
+- [x] Implement distance shader
+- [x] Implement Marching Cubes shader
+- [x] Fix Marching Cubes shader
+- [x] Implement GLwrap library
+- [x] Add network receiving
+- [x] Fix async and bugs on networking
+- [x] Update README.md
+- [x] Do iOS app
+- [ ] Fix iOS app
+- [ ] Merge iOS app repository
+- [ ] Calibrate world position and sphere radius
+- [ ] Add screenshots to README.md
+- [ ] Explain algorithm in Algorithm.md (or add link to paper)
