@@ -20,8 +20,6 @@ public:
 // private:
     // BINDING 4: SSBO for point data
     GLwrap::SSBO<glm::vec4> point_buffer;
-    // BINDING 5: 3D texture for checking updates
-    GLwrap::Texture3D update_tex;
     // BINDING 6: 3D texture for distances
     GLwrap::Texture3D dist_tex;
     // BINDING 7: SSBO for lookup marching cubes edges

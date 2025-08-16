@@ -74,20 +74,18 @@ bool NetReceiver::readPointCloud() {
     uint32_t pointCount = ntohl(netPointCount);
 
     // Read points
-    std::vector<glm::vec3> points3(pointCount);
-    if (!read_exact(socket, points3.data(), pointCount * sizeof(glm::vec3))) return false;
+    std::vector<glm::vec4> points(pointCount);
+    if (!read_exact(socket, points.data(), pointCount * sizeof(glm::vec4))) return false;
 
-    // Convert to vec4
-    std::vector<glm::vec4> points4;
-    points4.reserve(pointCount);
-    for (const auto& p : points3) {
-        points4.emplace_back(p, 1.0f);
+    for(auto& p : points) {
+        // Transform the points
+        p = (p + glm::vec4(1.f)) * 32.f;
     }
 
     // Push to queue
     {
         std::lock_guard<std::mutex> lock(queueMutex);
-        PCqueue.push(std::move(points4));
+        PCqueue.push(std::move(points));
     }
 
     // Print information

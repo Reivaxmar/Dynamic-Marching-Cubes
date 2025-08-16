@@ -6,10 +6,6 @@ layout(std430, binding = 4) buffer Positions {
     vec3 data[]; // xyz coordinates of each point
 };
 
-// 3D image storing which voxels have been updated in this pass.
-// Binding = 1, single channel (R32F).
-layout(binding = 5, r32f) uniform image3D update_tex;
-
 // 3D image storing the distance field values.
 // Binding = 2, single channel (R32F).
 layout(binding = 6, r32f) uniform image3D dist_tex;
@@ -31,7 +27,7 @@ void main() {
     if (point_idx >= numElements) return;
 
     // Size of the volume (in voxels) from the update texture.
-    ivec3 volumeSize = imageSize(update_tex);
+    ivec3 volumeSize = imageSize(dist_tex);
 
     // Integer voxel position of the point's center.
     ivec3 center = ivec3(data[point_idx]);
@@ -74,9 +70,6 @@ void main() {
 
                 // Store the new distance field value.
                 imageStore(dist_tex, ivec3(x, y, z), vec4(val, 0.0, 0.0, 0.0));
-
-                // Mark this voxel as updated for later processing.
-                imageStore(update_tex, ivec3(x, y, z), vec4(1.0, 0.0, 0.0, 0.0));
             }
         }
     }

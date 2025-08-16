@@ -15,9 +15,10 @@ int main() {
         asio::io_context io;
         asio::ip::tcp::socket socket(io);
 
-        asio::ip::tcp::endpoint endpoint(asio::ip::make_address("127.0.0.1"), 5000);
+        asio::ip::tcp::endpoint endpoint(asio::ip::make_address("0.0.0.0"), 5000);
 
         socket.connect(endpoint);
+        std::cout << "Connected\n";
 
         int frameID = 0, pointCount = 1000;
         auto start = std::chrono::system_clock::now();
@@ -55,10 +56,10 @@ int main() {
 
             // Add random points (0-127)
             std::mt19937 rng(std::random_device{}());
-            std::uniform_real_distribution<float> dist(0.f, 127.f);
+            std::uniform_real_distribution<float> dist(0.f, 1.f);
 
             for (uint32_t i = 0; i < pointCount; i++) {
-                glm::vec3 p(dist(rng), dist(rng), dist(rng));
+                glm::vec4 p(dist(rng), dist(rng), dist(rng), 1.f);
                 buffer.insert(buffer.end(),
                             reinterpret_cast<uint8_t*>(&p),
                             reinterpret_cast<uint8_t*>(&p) + sizeof(p));

@@ -8,9 +8,6 @@
 // - vertex SSBO bound to binding = 5 (vec4 entries where we store generated verts)
 // - counter SSBO bound to binding = 6 (single uint used for atomic allocation)
 
-// 3D texture for checking updated voxels (0.0 or 1.0 in .r)
-layout(binding = 5, r32f) uniform readonly image3D update_tex;
-
 // 3D distance field (scalar stored in .r)
 layout(binding = 6, r32f) uniform readonly image3D dist_tex;
 
@@ -91,11 +88,6 @@ void main() {
 
     // We process cells in range [0 .. gridSize-2] because each cell uses +1 in each axis
     if (cell.x >= gridSize.x - 1 || cell.y >= gridSize.y - 1 || cell.z >= gridSize.z - 1) {
-        return;
-    }
-
-    // Check if block not updated
-    if(imageLoad(update_tex, cell).r > 0.5) {
         return;
     }
 

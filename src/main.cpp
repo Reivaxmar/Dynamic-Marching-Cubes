@@ -25,7 +25,7 @@ int main() {
 
 
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
+    // glEnable(GL_CULL_FACE);
     glFrontFace(GL_CCW);
 
     // Create the camera
@@ -34,6 +34,23 @@ int main() {
     GLwrap::Shader defaultShader("assets/shaders/default.vert", "assets/shaders/default.frag");
 
     int cur_s = 0;
+
+
+#ifdef DEBUG_POINTS
+
+    std::vector<glm::vec4> all_points;
+
+    GLuint particleVAO = 0, particleVBO = 0;
+    glGenVertexArrays(1, &particleVAO);
+    glGenBuffers(1, &particleVBO);
+    glBindVertexArray(particleVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, particleVBO);
+    glBufferData(GL_ARRAY_BUFFER, EXPECTED_CAPACITY * sizeof(glm::vec4), nullptr, GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
+    glBindVertexArray(0);
+
+#endif
 
     while(!window.shouldClose()) {
         // Poll events
@@ -52,7 +69,11 @@ int main() {
 
         // If there's something new, update the mesh
         if(!upload.empty()) {
+            #ifdef DEBUG_POINTS
+            all_points.insert(all_points.end(), upload.begin(), upload.end());
+            #else
             MarchingCubes.update(upload);
+            #endif
         }
 
 
@@ -69,9 +90,25 @@ int main() {
         camera.UploadMatrix(defaultShader, "uMVP");
         glUniform3fv(glGetUniformLocation(defaultShader.ID, "lightPos"), 1, glm::value_ptr(camera.getPosition()));
         glUniform3fv(glGetUniformLocation(defaultShader.ID, "viewPos"), 1, glm::value_ptr(camera.getPosition()));
+        
+        #ifdef DEBUG_POINTS
+
+        // Draw points on the data
+        glBindBuffer(GL_ARRAY_BUFFER, particleVBO);
+        glBufferData(GL_ARRAY_BUFFER, all_points.size() * sizeof(glm::vec4), all_points.data(), GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        
+        glBindVertexArray(particleVAO);
+        glDrawArrays(GL_POINTS, 0, all_points.size());
+        glBindVertexArray(0);
+
+        #else
+        
         // Draw the Marching Cubes mesh
         glBindVertexArray(MarchingCubes.getVAO());
         glDrawArrays(GL_TRIANGLES, 0, MarchingCubes.counterSSBO.getData(1)[0]);
+
+        #endif
 
         // Display
         window.swapBuffers();

@@ -3,6 +3,8 @@
 
 #include <glm/vec3.hpp>
 
+// #define DEBUG_POINTS // Show points instead of Marching Cubes
+
 const glm::ivec3 GRIDSIZE = { 128, 128, 128 };
 const float ZERO = 0.0f;
 const float RADIUS_SIZE = 4.0f;

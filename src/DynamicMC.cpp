@@ -2,7 +2,6 @@
 
 DynamicMC::DynamicMC()
     : point_buffer(EXPECTED_CAPACITY, 4)
-    , update_tex(GRIDSIZE, GL_R32F, GL_RED, GL_FLOAT)
     , dist_tex(GRIDSIZE, GL_R32F, GL_RED, GL_FLOAT)
     , edgeTableSSBO(std::vector<int>(edgeTable, edgeTable + 256), 7)
     , triTableSSBO(std::vector<int>(triTable[0], triTable[0] + 256 * 16), 8)
@@ -13,8 +12,7 @@ DynamicMC::DynamicMC()
     , mcShader("assets/shaders/marchingCubes.comp")
     {
     
-    // Bind the textures
-    update_tex.bindImageUnit(5, GL_READ_WRITE);
+    // Bind the texture
     dist_tex.bindImageUnit(6, GL_READ_WRITE);
     
     // Reset the counter
@@ -43,9 +41,8 @@ DynamicMC::DynamicMC()
 DynamicMC::~DynamicMC() {}
 
 void DynamicMC::update(const std::vector<glm::vec4>& point_cloud) {
-    // Clear the update texture
-    update_tex.clear();
 
+    // Upload to the GPU the data
     point_buffer.setData(point_cloud);
 
     // Beginning point distance
@@ -54,7 +51,7 @@ void DynamicMC::update(const std::vector<glm::vec4>& point_cloud) {
     // Set the radius on the shader
     glUniform1i(glGetUniformLocation(pointProcess.ID, "radius"), (int)RADIUS_SIZE);
     // Set the number of elements on the shader
-    glUniform1i(glGetUniformLocation(pointProcess.ID, "numElements"), (int)point_buffer.getSize());
+    glUniform1i(glGetUniformLocation(pointProcess.ID, "numElements"), (int)point_cloud.size());
 
     // Run the point distance shader
     pointProcess.Run(glm::ivec3((point_cloud.size() + 7) / 8, 1, 1));
