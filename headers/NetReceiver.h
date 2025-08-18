@@ -9,6 +9,9 @@
 #include <asio.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/norm.hpp>
 
 using asio::ip::tcp;
 
@@ -17,9 +20,10 @@ public:
     NetReceiver(unsigned short port);
     ~NetReceiver();
     void GetPointCloud(std::vector<glm::vec4>& in);
+    bool IsCalibrating();
 
 private:
-    bool done = false;
+    bool done = false, isCalibrating = false;
     std::queue<std::vector<glm::vec4>> PCqueue;
     std::mutex queueMutex;
     std::thread dataThread;
@@ -29,6 +33,8 @@ private:
     tcp::socket socket;
     asio::executor_work_guard<asio::io_context::executor_type> work_guard;
     unsigned short port;
+
+    glm::vec3 minBB, maxBB;
 
     bool readPointCloud();
     inline bool read_exact(tcp::socket& socket, void* buffer, std::size_t length);

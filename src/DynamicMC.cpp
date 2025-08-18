@@ -49,7 +49,7 @@ void DynamicMC::update(const std::vector<glm::vec4>& point_cloud) {
     pointProcess.Activate();
 
     // Set the radius on the shader
-    glUniform1i(glGetUniformLocation(pointProcess.ID, "radius"), (int)RADIUS_SIZE);
+    glUniform1i(glGetUniformLocation(pointProcess.ID, "radius"), (int)RADIUS_SIZE + 1);
     // Set the number of elements on the shader
     glUniform1i(glGetUniformLocation(pointProcess.ID, "numElements"), (int)point_cloud.size());
 

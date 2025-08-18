@@ -48,8 +48,8 @@ There is no need to have them installed, CMake will do it:
 - [x] Fix async and bugs on networking
 - [x] Update README.md
 - [x] Do iOS app
-- [ ] Fix iOS app
+- [x] Fix iOS app
 - [ ] Merge iOS app repository
-- [ ] Calibrate world position and sphere radius
+- [x] Calibrate world position and sphere radius
 - [ ] Add screenshots to README.md
 - [ ] Explain algorithm in Algorithm.md (or add link to paper)

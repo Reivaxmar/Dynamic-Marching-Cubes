@@ -63,18 +63,21 @@ int main() {
             cur_s++;
         }
 
-        // Get latest point cloud data from the device
-        std::vector<glm::vec4> upload;
-        network.GetPointCloud(upload);
-
-        // If there's something new, update the mesh
-        if(!upload.empty()) {
-            #ifdef DEBUG_POINTS
-            all_points.insert(all_points.end(), upload.begin(), upload.end());
-            #else
-            MarchingCubes.update(upload);
-            #endif
+        if(!network.IsCalibrating()) {
+            // Get latest point cloud data from the device
+            std::vector<glm::vec4> upload;
+            network.GetPointCloud(upload);
+    
+            // If there's something new, update the mesh
+            if(!upload.empty()) {
+                #ifdef DEBUG_POINTS
+                all_points.insert(all_points.end(), upload.begin(), upload.end());
+                #else
+                MarchingCubes.update(upload);
+                #endif
+            }
         }
+
 
 
         // Update camera position and matrix

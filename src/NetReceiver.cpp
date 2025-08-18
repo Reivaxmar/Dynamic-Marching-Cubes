@@ -6,12 +6,16 @@ NetReceiver::NetReceiver(unsigned short port)
     , socket(io)
     , port(port)
 {
+    // Init bounding box
+    minBB = glm::vec3(std::numeric_limits<float>::max());
+    maxBB = glm::vec3(std::numeric_limits<float>::lowest());
+
     startAccept(); // post accept before io.run() starts
     dataThread = std::thread([this]() { io.run(); });
 }
 
 NetReceiver::~NetReceiver() {
-    std::cout << "Exiting\n";
+    std::cout << "[Network] Exiting\n";
     done = true;
     
     work_guard.reset();
@@ -38,6 +42,10 @@ void NetReceiver::GetPointCloud(std::vector<glm::vec4>& in) {
     }
 }
 
+bool NetReceiver::IsCalibrating() {
+    return isCalibrating;
+}
+
 bool NetReceiver::readPointCloud() {
 
     // Read header
@@ -48,13 +56,14 @@ bool NetReceiver::readPointCloud() {
         return false;
     }
 
-    // Read version
-    uint8_t version;
-    if (!read_exact(socket, &version, 1)) return false;
-    if (version != 1) {
-        std::cerr << "[Network] Unsupported version " << int(version) << "\n";
-        return false;
-    }
+    // Read if calibrating
+    uint8_t calibrating;
+    if (!read_exact(socket, &calibrating, 1)) return false;
+    isCalibrating = calibrating;
+    // if (calibrating != 1) {
+    //     std::cerr << "[Network] Unsupported version " << int(version) << "\n";
+    //     return false;
+    // }
 
     // Read frame ID
     uint32_t netFrameID;
@@ -69,24 +78,50 @@ bool NetReceiver::readPointCloud() {
     std::memcpy(&timestamp, &netTimestampBits, sizeof(timestamp));
 
     // Read point cloud count
-    uint32_t netPointCount;
-    if (!read_exact(socket, &netPointCount, 4)) return false;
-    uint32_t pointCount = ntohl(netPointCount);
+    uint32_t pointCount;
+    if (!read_exact(socket, &pointCount, 4)) return false;
+    // uint32_t pointCount = ntohl(netPointCount);
 
     // Read points
-    std::vector<glm::vec4> points(pointCount);
-    if (!read_exact(socket, points.data(), pointCount * sizeof(glm::vec4))) return false;
+    std::vector<glm::vec3> points(pointCount);
+    if (!read_exact(socket, points.data(), pointCount * sizeof(glm::vec3))) return false;
 
-    for(auto& p : points) {
-        // Transform the points
-        p = (p + glm::vec4(1.f)) * 32.f;
+    if(isCalibrating) {
+        // Update bounding box
+        float mx = -999;
+        for(const auto& p : points) {
+            if(glm::length2(p) > 100) continue; // More than 10m away (mistake)
+            if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z)) continue; // Error
+            
+            minBB = glm::vec3(std::min(minBB.x, p.x), std::min(minBB.y, p.y), std::min(minBB.z, p.z));
+            maxBB = glm::vec3(std::max(maxBB.x, p.x), std::max(maxBB.y, p.y), std::max(maxBB.z, p.z));
+            if(p.x > mx) {
+                std::cout << "New p.x: " << p.x << "\n";
+                mx = std::max(mx, p.x);
+            }
+        }
+        std::cout << "mx: " << mx << std::endl;
+    } else {
+        // Convert to glm::vec4
+        std::vector<glm::vec4> points4(pointCount);
+    
+        for(int i = 0; i < pointCount; i++) {
+            // Transform the points
+            points4[i] = glm::vec4((points[i] - minBB) / (maxBB - minBB) * 128.0f, 1.f);
+            // std::cout << "New point: " << points4[i].x << ", " << points4[i].y << ", " << points4[i].z << "\n";
+            // points4[i] = glm::vec4((points[i] + glm::vec3(1.f)) * 32.f, 1.f);
+        }
+        std::cout << "ASDASDSA: "<< glm::length2(maxBB) << "\n";
+        std::cout << "minBB: " << minBB.x << ", " << minBB.y << ", " << minBB.z << "\n";
+        std::cout << "maxBB: " << maxBB.x << ", " << maxBB.y << ", " << maxBB.z << "\n\n";
+    
+        // Push to queue
+        {
+            std::lock_guard<std::mutex> lock(queueMutex);
+            PCqueue.push(std::move(points4));
+        }
     }
 
-    // Push to queue
-    {
-        std::lock_guard<std::mutex> lock(queueMutex);
-        PCqueue.push(std::move(points));
-    }
 
     // Print information
     std::cout << "[Network] Frame " << frameID
