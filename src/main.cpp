@@ -66,7 +66,8 @@ int main() {
         if(!network.IsCalibrating()) {
             // Get latest point cloud data from the device
             std::vector<glm::vec4> upload;
-            network.GetPointCloud(upload);
+            glm::vec3 camPos;
+            network.GetPointCloud(upload, camPos);
     
             // If there's something new, update the mesh
             if(!upload.empty()) {

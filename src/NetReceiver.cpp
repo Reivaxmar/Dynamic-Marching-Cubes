@@ -32,12 +32,13 @@ NetReceiver::~NetReceiver() {
         dataThread.join();
 }
 
-void NetReceiver::GetPointCloud(std::vector<glm::vec4>& in) {
+void NetReceiver::GetPointCloud(std::vector<glm::vec4>& points, glm::vec3& cam) {
     // Lock the queue
     std::unique_lock<std::mutex> lock(queueMutex);
     // Check if there's anything new
     if (!PCqueue.empty()) {
-        in.swap(PCqueue.front());
+        cam = PCqueue.front().first;
+        points = std::move(PCqueue.front().second);
         PCqueue.pop();
     }
 }
@@ -60,27 +61,22 @@ bool NetReceiver::readPointCloud() {
     uint8_t calibrating;
     if (!read_exact(socket, &calibrating, 1)) return false;
     isCalibrating = calibrating;
-    // if (calibrating != 1) {
-    //     std::cerr << "[Network] Unsupported version " << int(version) << "\n";
-    //     return false;
-    // }
 
     // Read frame ID
-    uint32_t netFrameID;
-    if (!read_exact(socket, &netFrameID, 4)) return false;
-    uint32_t frameID = ntohl(netFrameID);
+    uint32_t frameID;
+    if (!read_exact(socket, &frameID, 4)) return false;
 
     // Read timestamp
-    uint64_t netTimestampBits;
-    if (!read_exact(socket, &netTimestampBits, 8)) return false;
-    netTimestampBits = be64toh(netTimestampBits);
     double timestamp;
-    std::memcpy(&timestamp, &netTimestampBits, sizeof(timestamp));
+    if (!read_exact(socket, &timestamp, 8)) return false;
+
+    // Read camera position
+    glm::vec3 camPos;
+    if (!read_exact(socket, &camPos, sizeof(camPos))) return false;
 
     // Read point cloud count
     uint32_t pointCount;
     if (!read_exact(socket, &pointCount, 4)) return false;
-    // uint32_t pointCount = ntohl(netPointCount);
 
     // Read points
     std::vector<glm::vec3> points(pointCount);
@@ -88,37 +84,34 @@ bool NetReceiver::readPointCloud() {
 
     if(isCalibrating) {
         // Update bounding box
-        float mx = -999;
         for(const auto& p : points) {
             if(glm::length2(p) > 100) continue; // More than 10m away (mistake)
             if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z)) continue; // Error
             
             minBB = glm::vec3(std::min(minBB.x, p.x), std::min(minBB.y, p.y), std::min(minBB.z, p.z));
             maxBB = glm::vec3(std::max(maxBB.x, p.x), std::max(maxBB.y, p.y), std::max(maxBB.z, p.z));
-            if(p.x > mx) {
-                std::cout << "New p.x: " << p.x << "\n";
-                mx = std::max(mx, p.x);
-            }
         }
-        std::cout << "mx: " << mx << std::endl;
     } else {
         // Convert to glm::vec4
         std::vector<glm::vec4> points4(pointCount);
-    
+
+        // Compute uniform scale and offset
+        glm::vec3 bbSize = maxBB - minBB;
+        float maxDim = std::max({bbSize.x, bbSize.y, bbSize.z});
+        float scale = (maxDim > 0.0f) ? (128.0f / maxDim) : 1.0f;
+        glm::vec3 offset = -minBB;
+
         for(int i = 0; i < pointCount; i++) {
-            // Transform the points
-            points4[i] = glm::vec4((points[i] - minBB) / (maxBB - minBB) * 128.0f, 1.f);
-            // std::cout << "New point: " << points4[i].x << ", " << points4[i].y << ", " << points4[i].z << "\n";
-            // points4[i] = glm::vec4((points[i] + glm::vec3(1.f)) * 32.f, 1.f);
+            glm::vec3 p = points[i];
+            // Uniform scale and translate in all axes
+            glm::vec3 transformed = (p + offset) * scale;
+            points4[i] = glm::vec4(transformed, 1.f);
         }
-        std::cout << "ASDASDSA: "<< glm::length2(maxBB) << "\n";
-        std::cout << "minBB: " << minBB.x << ", " << minBB.y << ", " << minBB.z << "\n";
-        std::cout << "maxBB: " << maxBB.x << ", " << maxBB.y << ", " << maxBB.z << "\n\n";
-    
+
         // Push to queue
         {
             std::lock_guard<std::mutex> lock(queueMutex);
-            PCqueue.push(std::move(points4));
+            PCqueue.push(std::move(std::make_pair(camPos, points4)));
         }
     }
 
