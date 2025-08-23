@@ -74,7 +74,7 @@ int main() {
                 #ifdef DEBUG_POINTS
                 all_points.insert(all_points.end(), upload.begin(), upload.end());
                 #else
-                MarchingCubes.update(upload);
+                MarchingCubes.update(upload, camPos);
                 #endif
             }
         }

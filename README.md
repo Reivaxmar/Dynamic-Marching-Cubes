@@ -53,3 +53,5 @@ There is no need to have them installed, CMake will do it:
 - [x] Calibrate world position and sphere radius
 - [ ] Add screenshots to README.md
 - [ ] Explain algorithm in Algorithm.md (or add link to paper)
+- [x] Option for smooth shading (use gradients)
+- [x] Implement TSDF instead of the weird thing we have

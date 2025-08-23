@@ -2,7 +2,8 @@
 
 DynamicMC::DynamicMC()
     : point_buffer(EXPECTED_CAPACITY, 4)
-    , dist_tex(GRIDSIZE, GL_R32F, GL_RED, GL_FLOAT)
+    , tsdf_tex(GRIDSIZE, GL_R32F, GL_RED, GL_FLOAT)
+    , weight_tex(GRIDSIZE, GL_R32F, GL_RED, GL_FLOAT)
     , edgeTableSSBO(std::vector<int>(edgeTable, edgeTable + 256), 7)
     , triTableSSBO(std::vector<int>(triTable[0], triTable[0] + 256 * 16), 8)
     , vertexSSBO(GRIDSIZE.x * GRIDSIZE.y * GRIDSIZE.z * 15, 9, GL_DYNAMIC_DRAW)
@@ -13,7 +14,8 @@ DynamicMC::DynamicMC()
     {
     
     // Bind the texture
-    dist_tex.bindImageUnit(6, GL_READ_WRITE);
+    tsdf_tex.bindImageUnit(5, GL_READ_WRITE);
+    weight_tex.bindImageUnit(6, GL_READ_WRITE);
     
     // Reset the counter
     counterSSBO.setData({0});
@@ -40,7 +42,7 @@ DynamicMC::DynamicMC()
 
 DynamicMC::~DynamicMC() {}
 
-void DynamicMC::update(const std::vector<glm::vec4>& point_cloud) {
+void DynamicMC::update(const std::vector<glm::vec4>& point_cloud, const glm::vec3& camPos) {
 
     // Upload to the GPU the data
     point_buffer.setData(point_cloud);
@@ -48,10 +50,14 @@ void DynamicMC::update(const std::vector<glm::vec4>& point_cloud) {
     // Beginning point distance
     pointProcess.Activate();
 
-    // Set the radius on the shader
-    glUniform1i(glGetUniformLocation(pointProcess.ID, "radius"), (int)RADIUS_SIZE + 1);
-    // Set the number of elements on the shader
+    // Set uniforms
+    // glUniform1i(glGetUniformLocation(pointProcess.ID, "radius"), (int)RADIUS_SIZE + 1);
     glUniform1i(glGetUniformLocation(pointProcess.ID, "numElements"), (int)point_cloud.size());
+    glUniform1i(glGetUniformLocation(pointProcess.ID, "truncDist"), (int)RADIUS_SIZE);
+    glUniform3f(glGetUniformLocation(pointProcess.ID, "camPos"), camPos.x, camPos.y, camPos.z);
+    glUniform1i(glGetUniformLocation(pointProcess.ID, "maxWeight"), 1);
+    glUniform1i(glGetUniformLocation(pointProcess.ID, "useNeighborhood"), GL_TRUE);
+    glUniform3i(glGetUniformLocation(pointProcess.ID, "gridResolution"), GRIDSIZE.x, GRIDSIZE.y, GRIDSIZE.z);
 
     // Run the point distance shader
     pointProcess.Run(glm::ivec3((point_cloud.size() + 7) / 8, 1, 1));
@@ -59,6 +65,12 @@ void DynamicMC::update(const std::vector<glm::vec4>& point_cloud) {
 
     // Beginning Marching Cubes
     mcShader.Activate();
+
+    tsdf_tex.bind(5);
+
+    glUniform1i(glGetUniformLocation(mcShader.ID, "dist_sampler"), 5);
+
+    // Set uniforms
     glUniform1f(glGetUniformLocation(mcShader.ID, "isoLevel"), 0.5f);
     glUniform3f(glGetUniformLocation(mcShader.ID, "gridScale"), 1.0f, 1.0f, 1.0f);
     glUniform3i(glGetUniformLocation(mcShader.ID, "gridSize"), GRIDSIZE.x, GRIDSIZE.y, GRIDSIZE.z);

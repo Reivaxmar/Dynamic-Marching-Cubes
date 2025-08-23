@@ -14,14 +14,16 @@ public:
     DynamicMC();
     ~DynamicMC();
 
-    void update(const std::vector<glm::vec4>& point_cloud);
+    void update(const std::vector<glm::vec4>& point_cloud, const glm::vec3& camPos);
     GLuint getVAO() const;
 
 // private:
     // BINDING 4: SSBO for point data
     GLwrap::SSBO<glm::vec4> point_buffer;
-    // BINDING 6: 3D texture for distances
-    GLwrap::Texture3D dist_tex;
+    // BINDING 5: 3D texture for TSDF
+    GLwrap::Texture3D tsdf_tex;
+    // BINDING 6: 3D texture for TSDF weight
+    GLwrap::Texture3D weight_tex;
     // BINDING 7: SSBO for lookup marching cubes edges
     GLwrap::SSBO<int> edgeTableSSBO;
     // BINDING 8: SSBO for lookup marching cubes triangles

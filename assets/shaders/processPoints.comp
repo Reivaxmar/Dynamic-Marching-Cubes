@@ -1,76 +1,97 @@
 #version 430 core
 
-// SSBO containing the input point cloud positions.
-// Bound to binding = 0 in the host code.
+// Get the point positions
 layout(std430, binding = 4) buffer Positions {
-    vec3 data[]; // xyz coordinates of each point
+    vec3 points[];
 };
 
-// 3D image storing the distance field values.
-// Binding = 2, single channel (R32F).
-layout(binding = 6, r32f) uniform image3D dist_tex;
+// TSDF and weight volumes
+layout(binding = 5, r32f) uniform coherent image3D tsdf_tex;
+layout(binding = 6, r32f) uniform coherent image3D weight_tex;
 
-// Work group configuration: we process 8 points per work group in X.
+// Process 8 points per work group
 layout (local_size_x = 8, local_size_y = 1, local_size_z = 1) in;
 
-// Radius of influence for each point (in voxel units).
-uniform int radius;
-
-// Total number of elements in the point cloud.
+// Shader uniforms
 uniform int numElements;
+uniform int truncDist; // truncation distance in voxels
+uniform vec3 camPos;
+uniform int maxWeight;
+uniform bool useNeighborhood;
+
+// Grid resolution is fixed (e.g., 128^3)
+uniform ivec3 gridResolution; // should be ivec3(128)
+
+// Compute truncated signed distance in [-1,1] given voxel center and point
+float tsdfSample(vec3 p, vec3 c, vec3 cam) {
+    vec3 v_cam2surf = normalize(p - cam);
+    float dist = length(c - p);
+    float mu = float(max(1, truncDist));
+    float phi = clamp(dist / mu, 0.0, 1.0);
+    float s = sign(dot(v_cam2surf, c - p));
+    if (s == 0.0) s = 1.0;
+    return s * (1.0 - phi);
+}
+
+// Load TSDF fusion parameters
+void loadTw(ivec3 vidx, out float tsdf, out float w) {
+    tsdf = imageLoad(tsdf_tex, vidx).r;
+    w    = imageLoad(weight_tex, vidx).r;
+}
+
+// Store TSDF fusion parameters
+void storeTw(ivec3 vidx, float tsdf, float w) {
+    imageStore(tsdf_tex,   vidx, vec4(tsdf, 0, 0, 0));
+    imageStore(weight_tex, vidx, vec4(w,    0, 0, 0));
+}
+
+// Integrate new TSDF point
+void integrateAt(ivec3 vidx, float obs) {
+    float tsdf_old, w_old;
+    loadTw(vidx, tsdf_old, w_old);
+    float w_new    = min(w_old + 1.0, float(maxWeight));
+    float tsdf_new = (tsdf_old * w_old + obs) / w_new;
+    storeTw(vidx, tsdf_new, w_new);
+}
 
 void main() {
-    // Index of the current point we are processing (in the point cloud array).
-    int point_idx = int(gl_GlobalInvocationID.x);
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= uint(numElements)) return;
 
-    // If this thread corresponds to no valid point, exit early.
-    if (point_idx >= numElements) return;
+    // Points are already in voxel coordinates (0..gridResolution)
+    vec3 p = points[i];
 
-    // Size of the volume (in voxels) from the update texture.
-    ivec3 volumeSize = imageSize(dist_tex);
+    ivec3 v0 = ivec3(floor(p));
+    if (any(lessThan(v0, ivec3(0))) || any(greaterThanEqual(v0, gridResolution))) return;
 
-    // Integer voxel position of the point's center.
-    ivec3 center = ivec3(data[point_idx]);
+    // Center of voxel in voxel coordinates (voxel size = 1)
+    vec3 c0 = vec3(v0) + vec3(0.5);
+    float obs = tsdfSample(p, c0, camPos);
+    integrateAt(v0, obs);
 
-    // Precompute radius squared for cheaper distance comparisons.
-    int rSq = radius * radius;
+    if (useNeighborhood) {
+        int r = max(1, truncDist);
+        for (int dz = -r; dz <= r; ++dz) {
+            for (int dy = -r; dy <= r; ++dy) {
+                for (int dx = -r; dx <= r; ++dx) {
+                    // Current voxel position
+                    ivec3 v = v0 + ivec3(dx, dy, dz);
+                    // Check bounds
+                    if (all(equal(v, v0))) continue;
+                    if (any(lessThan(v, ivec3(0))) || any(greaterThanEqual(v, gridResolution))) continue;
 
-    // Precompute reciprocal radius to avoid repeated division.
-    float invRadius = 1.0 / float(radius);
+                    // Check truncation distance
+                    vec3 c = vec3(v) + vec3(0.5);
+                    if (length(c - p) > float(truncDist)) continue;
 
-    // Iterate over all voxels in the cube around the point.
-    // We skip positions outside the volume immediately.
-    for (int dz = -radius; dz <= radius; ++dz) {
-        int z = center.z + dz;
-        if (z < 0 || z >= volumeSize.z) continue; // Skip if out of bounds
-
-        for (int dy = -radius; dy <= radius; ++dy) {
-            int y = center.y + dy;
-            if (y < 0 || y >= volumeSize.y) continue; // Skip if out of bounds
-
-            for (int dx = -radius; dx <= radius; ++dx) {
-                int x = center.x + dx;
-                if (x < 0 || x >= volumeSize.x) continue; // Skip if out of bounds
-
-                // Compute squared distance from the sphere center.
-                int dSq = dx*dx + dy*dy + dz*dz;
-                if (dSq > rSq) continue; // Outside the sphere radius
-
-                // Convert squared distance to actual distance (only now do sqrt).
-                float dist = sqrt(float(dSq));
-
-                // Map distance to a [0,1] falloff: 1 at center, 0 at edge.
-                float val = 1.0 - (dist * invRadius);
-
-                // Read current voxel value from distance texture.
-                float old_val = imageLoad(dist_tex, ivec3(x, y, z)).r;
-
-                // Only update if the new value is greater (closer to center).
-                if (val <= old_val) continue;
-
-                // Store the new distance field value.
-                imageStore(dist_tex, ivec3(x, y, z), vec4(val, 0.0, 0.0, 0.0));
+                    // Integrate TSDF
+                    float obsN = tsdfSample(p, c, camPos);
+                    integrateAt(v, obsN);
+                }
             }
         }
     }
+
+    memoryBarrierImage();
+    barrier();
 }
