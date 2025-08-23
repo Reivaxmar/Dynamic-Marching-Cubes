@@ -108,5 +108,17 @@ namespace GLwrap
         return position;
     }
 
+    glm::vec3 Camera::getDirection() const {
+        return direction;
+    }
+
+    void Camera::setPosition(glm::vec3 pos) {
+        position = pos;
+    }
+
+    void Camera::setDirection(glm::vec3 dir) {
+        direction = dir;
+    }
+
 } // namespace GLwrap
 

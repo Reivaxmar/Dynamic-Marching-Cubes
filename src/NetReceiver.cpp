@@ -108,6 +108,9 @@ bool NetReceiver::readPointCloud() {
             points4[i] = glm::vec4(transformed, 1.f);
         }
 
+        // Transform camera position
+        camPos = (camPos + offset) * scale;
+
         // Push to queue
         {
             std::lock_guard<std::mutex> lock(queueMutex);

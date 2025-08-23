@@ -43,7 +43,7 @@ namespace GLwrap {
             glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
         }
 
-        std::vector<T> getData(size_t count = 0, size_t offset = 0) {
+        std::vector<T> getData(size_t count = 0, size_t offset = 0) const {
             if(count == 0) {
                 count = size;
                 offset = 0;

@@ -24,6 +24,10 @@ namespace GLwrap
         void UploadMatrix(const Shader& shader, std::string uniform);
 
         glm::vec3 getPosition() const;
+        glm::vec3 getDirection() const;
+
+        void setPosition(glm::vec3 pos);
+        void setDirection(glm::vec3 dir);
     private:
         glm::vec3 position, direction;
         const glm::vec3 up = glm::vec3(0.f, 1.f, 0.f);

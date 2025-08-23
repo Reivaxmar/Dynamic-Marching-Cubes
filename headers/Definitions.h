@@ -14,4 +14,7 @@ const int EXPECTED_CAPACITY = 50000; // 50k points per frame
 extern const int edgeTable[256];
 extern const int triTable[256][16];
 
+// Table for grid cube
+extern const glm::vec3 gridCubeVerts[24];
+
 #endif

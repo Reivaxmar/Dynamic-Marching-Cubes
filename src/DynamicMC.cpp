@@ -22,8 +22,8 @@ DynamicMC::DynamicMC()
 
 
     // The vertex SSBO will be set to be the VBO
-    glGenVertexArrays(1, &vaoID);
-    glBindVertexArray(vaoID);
+    glGenVertexArrays(1, &MCvaoID);
+    glBindVertexArray(MCvaoID);
 
     // Bind the vertices to the VAO
     glBindBuffer(GL_ARRAY_BUFFER, vertexSSBO.getID());
@@ -38,12 +38,23 @@ DynamicMC::DynamicMC()
     // Unbind
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    GLuint gridVbo;
+    glGenVertexArrays(1, &Gridvao);
+    glGenBuffers(1, &gridVbo);
+    glBindVertexArray(Gridvao);
+    glBindBuffer(GL_ARRAY_BUFFER, gridVbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(gridCubeVerts), gridCubeVerts, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
 }
 
 DynamicMC::~DynamicMC() {}
 
-void DynamicMC::update(const std::vector<glm::vec4>& point_cloud, const glm::vec3& camPos) {
-
+void DynamicMC::processPoints(const std::vector<glm::vec4>& point_cloud, const glm::vec3& camPos) {
     // Upload to the GPU the data
     point_buffer.setData(point_cloud);
 
@@ -62,7 +73,14 @@ void DynamicMC::update(const std::vector<glm::vec4>& point_cloud, const glm::vec
     // Run the point distance shader
     pointProcess.Run(glm::ivec3((point_cloud.size() + 7) / 8, 1, 1));
 
+    glMemoryBarrier(
+        GL_SHADER_STORAGE_BARRIER_BIT |
+        GL_BUFFER_UPDATE_BARRIER_BIT |
+        GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT
+    );
+}
 
+void DynamicMC::updateMesh() {
     // Beginning Marching Cubes
     mcShader.Activate();
 
@@ -87,9 +105,18 @@ void DynamicMC::update(const std::vector<glm::vec4>& point_cloud, const glm::vec
         GL_BUFFER_UPDATE_BARRIER_BIT |
         GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT
     );
-
 }
 
-GLuint DynamicMC::getVAO() const {
-    return vaoID;
+void DynamicMC::Draw(bool drawGrid) {
+
+    // Draw Marching Cubes mesh
+    glBindVertexArray(MCvaoID);
+    glDrawArrays(GL_TRIANGLES, 0, counterSSBO.getData(1)[0]);
+
+    if (drawGrid) {
+        glBindVertexArray(Gridvao);
+        // 24 vertices for 12 edges (lines)
+        glDrawArrays(GL_LINES, 0, 24);
+        glBindVertexArray(0);
+    }
 }

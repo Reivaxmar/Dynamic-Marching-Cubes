@@ -34,6 +34,8 @@ int main() {
     GLwrap::Shader defaultShader("assets/shaders/default.vert", "assets/shaders/default.frag");
 
     int cur_s = 0;
+    double lastTime = glfwGetTime();
+    double updTime = 0.25; // Update MC mesh time interval
 
 
 #ifdef DEBUG_POINTS
@@ -56,7 +58,9 @@ int main() {
         // Poll events
         window.pollEvents();
 
-        if((int)glfwGetTime() > cur_s) {
+        double curTime = glfwGetTime();
+
+        while((int)curTime > cur_s) {
             // Update title to show FPS
             std::string newTitle = "Dynamic Marching Cubes - FPS: " + GLwrap::floatprec(1.f/window.deltaTime, 2);
             glfwSetWindowTitle(window.getWindow(), newTitle.c_str());
@@ -74,9 +78,18 @@ int main() {
                 #ifdef DEBUG_POINTS
                 all_points.insert(all_points.end(), upload.begin(), upload.end());
                 #else
-                MarchingCubes.update(upload, camPos);
+                MarchingCubes.processPoints(upload, camPos);
+                // Follow the scanner camera
+                // camera.setPosition(camPos);
+                // TODO: send/receive the camera direction. Or just send the matrix ;)
                 #endif
             }
+        }
+
+        // Update mesh
+        while(curTime - lastTime >= updTime) {
+            MarchingCubes.updateMesh();
+            lastTime += updTime;
         }
 
 
@@ -109,8 +122,7 @@ int main() {
         #else
         
         // Draw the Marching Cubes mesh
-        glBindVertexArray(MarchingCubes.getVAO());
-        glDrawArrays(GL_TRIANGLES, 0, MarchingCubes.counterSSBO.getData(1)[0]);
+        MarchingCubes.Draw();
 
         #endif
 

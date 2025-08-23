@@ -291,3 +291,23 @@ const int triTable[256][16] = {
     {  0,  3,  8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
     { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 }
 };
+
+const glm::vec3 gridCubeVerts[24] = {
+    // Bottom square
+    {0, 0, 0}, {GRIDSIZE.x, 0, 0},
+    {GRIDSIZE.x, 0, 0}, {GRIDSIZE.x, GRIDSIZE.y, 0},
+    {GRIDSIZE.x, GRIDSIZE.y, 0}, {0, GRIDSIZE.y, 0},
+    {0, GRIDSIZE.y, 0}, {0, 0, 0},
+
+    // Top square
+    {0, 0, GRIDSIZE.z}, {GRIDSIZE.x, 0, GRIDSIZE.z},
+    {GRIDSIZE.x, 0, GRIDSIZE.z}, {GRIDSIZE.x, GRIDSIZE.y, GRIDSIZE.z},
+    {GRIDSIZE.x, GRIDSIZE.y, GRIDSIZE.z}, {0, GRIDSIZE.y, GRIDSIZE.z},
+    {0, GRIDSIZE.y, GRIDSIZE.z}, {0, 0, GRIDSIZE.z},
+
+    // Vertical edges
+    {0, 0, 0}, {0, 0, GRIDSIZE.z},
+    {GRIDSIZE.x, 0, 0}, {GRIDSIZE.x, 0, GRIDSIZE.z},
+    {GRIDSIZE.x, GRIDSIZE.y, 0}, {GRIDSIZE.x, GRIDSIZE.y, GRIDSIZE.z},
+    {0, GRIDSIZE.y, 0}, {0, GRIDSIZE.y, GRIDSIZE.z},
+};

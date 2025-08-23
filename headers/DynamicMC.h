@@ -14,10 +14,12 @@ public:
     DynamicMC();
     ~DynamicMC();
 
-    void update(const std::vector<glm::vec4>& point_cloud, const glm::vec3& camPos);
-    GLuint getVAO() const;
+    void processPoints(const std::vector<glm::vec4>& point_cloud, const glm::vec3& camPos);
+    void updateMesh();
 
-// private:
+    void Draw(bool drawGrid = true);
+
+private:
     // BINDING 4: SSBO for point data
     GLwrap::SSBO<glm::vec4> point_buffer;
     // BINDING 5: 3D texture for TSDF
@@ -40,8 +42,10 @@ public:
     // Compute shader for Marching Cubes
     GLwrap::ComputeShader mcShader;
 
-    // ID for the VAO
-    GLuint vaoID;
+    // ID for the Marching Cubes VAO
+    GLuint MCvaoID;
+    // ID for the grid VAO
+    GLuint Gridvao;
 };
 
 #endif // DYNAMIC_MC_CLASS_H
