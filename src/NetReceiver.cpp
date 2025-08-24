@@ -32,12 +32,12 @@ NetReceiver::~NetReceiver() {
         dataThread.join();
 }
 
-void NetReceiver::GetPointCloud(std::vector<glm::vec4>& points, glm::vec3& cam) {
+void NetReceiver::GetPointCloud(std::vector<glm::vec4>& points, glm::mat4& camMat) {
     // Lock the queue
     std::unique_lock<std::mutex> lock(queueMutex);
     // Check if there's anything new
     if (!PCqueue.empty()) {
-        cam = PCqueue.front().first;
+        camMat = PCqueue.front().first;
         points = std::move(PCqueue.front().second);
         PCqueue.pop();
     }
@@ -70,9 +70,11 @@ bool NetReceiver::readPointCloud() {
     double timestamp;
     if (!read_exact(socket, &timestamp, 8)) return false;
 
-    // Read camera position
-    glm::vec3 camPos;
-    if (!read_exact(socket, &camPos, sizeof(camPos))) return false;
+    // Read camera matrix
+    // glm::vec3 camPos;
+    // if (!read_exact(socket, &camPos, sizeof(camPos))) return false;
+    glm::mat4 camMat;
+    if (!read_exact(socket, &camMat, sizeof(camMat))) return false;
 
     // Read point cloud count
     uint32_t pointCount;
@@ -92,29 +94,34 @@ bool NetReceiver::readPointCloud() {
             maxBB = glm::vec3(std::max(maxBB.x, p.x), std::max(maxBB.y, p.y), std::max(maxBB.z, p.z));
         }
     } else {
-        // Convert to glm::vec4
-        std::vector<glm::vec4> points4(pointCount);
-
         // Compute uniform scale and offset
         glm::vec3 bbSize = maxBB - minBB;
         float maxDim = std::max({bbSize.x, bbSize.y, bbSize.z});
         float scale = (maxDim > 0.0f) ? (128.0f / maxDim) : 1.0f;
         glm::vec3 offset = -minBB;
 
-        for(int i = 0; i < pointCount; i++) {
-            glm::vec3 p = points[i];
-            // Uniform scale and translate in all axes
-            glm::vec3 transformed = (p + offset) * scale;
-            points4[i] = glm::vec4(transformed, 1.f);
+        // Build transformation matrix
+        glm::mat4 transform(1.0f);
+
+        // Note: order matters! If you want (p + offset) * scale, you need to apply
+        // translate first, then scale. GLM composes right-to-left, so the code above
+        // actually does scale first, then translate.
+        transform = glm::scale(glm::mat4(1.0f), glm::vec3(scale)) *
+                    glm::translate(glm::mat4(1.0f), offset);
+
+        // Transform all points
+        std::vector<glm::vec4> points4(pointCount);
+        for (int i = 0; i < pointCount; i++) {
+            points4[i] = transform * glm::vec4(points[i], 1.0f);
         }
 
         // Transform camera position
-        camPos = (camPos + offset) * scale;
+        camMat = transform * camMat;
 
         // Push to queue
         {
             std::lock_guard<std::mutex> lock(queueMutex);
-            PCqueue.push(std::move(std::make_pair(camPos, points4)));
+            PCqueue.push(std::move(std::make_pair(camMat, points4)));
         }
     }
 

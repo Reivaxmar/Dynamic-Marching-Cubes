@@ -19,12 +19,12 @@ class NetReceiver {
 public:
     NetReceiver(unsigned short port);
     ~NetReceiver();
-    void GetPointCloud(std::vector<glm::vec4>& points, glm::vec3& cam);
+    void GetPointCloud(std::vector<glm::vec4>& points, glm::mat4& camMat);
     bool IsCalibrating();
 
 private:
     bool done = false, isCalibrating = false;
-    std::queue<std::pair<glm::vec3, std::vector<glm::vec4>>> PCqueue;
+    std::queue<std::pair<glm::mat4, std::vector<glm::vec4>>> PCqueue;
     std::mutex queueMutex;
     std::thread dataThread;
 

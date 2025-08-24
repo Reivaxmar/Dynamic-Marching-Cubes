@@ -112,12 +112,23 @@ namespace GLwrap
         return direction;
     }
 
+    glm::mat4 Camera::getMatrix() const {
+        return matrix;
+    }
+
     void Camera::setPosition(glm::vec3 pos) {
         position = pos;
     }
 
     void Camera::setDirection(glm::vec3 dir) {
         direction = dir;
+    }
+
+    void Camera::setMatrix(glm::mat4 mat) {
+        matrix = mat;
+        // Set the position and rotation
+        position = glm::vec3(mat[3]);
+        direction = -glm::normalize(glm::vec3(mat[2]));
     }
 
 } // namespace GLwrap

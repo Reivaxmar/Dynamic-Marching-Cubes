@@ -25,9 +25,12 @@ namespace GLwrap
 
         glm::vec3 getPosition() const;
         glm::vec3 getDirection() const;
+        glm::mat4 getMatrix() const;
 
         void setPosition(glm::vec3 pos);
         void setDirection(glm::vec3 dir);
+        void setMatrix(glm::mat4 mat);
+
     private:
         glm::vec3 position, direction;
         const glm::vec3 up = glm::vec3(0.f, 1.f, 0.f);

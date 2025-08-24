@@ -70,18 +70,17 @@ int main() {
         if(!network.IsCalibrating()) {
             // Get latest point cloud data from the device
             std::vector<glm::vec4> upload;
-            glm::vec3 camPos;
-            network.GetPointCloud(upload, camPos);
+            glm::mat4 camMat;
+            network.GetPointCloud(upload, camMat);
     
             // If there's something new, update the mesh
             if(!upload.empty()) {
                 #ifdef DEBUG_POINTS
                 all_points.insert(all_points.end(), upload.begin(), upload.end());
                 #else
-                MarchingCubes.processPoints(upload, camPos);
+                MarchingCubes.processPoints(upload, glm::vec3(camMat[3]));
                 // Follow the scanner camera
-                // camera.setPosition(camPos);
-                // TODO: send/receive the camera direction. Or just send the matrix ;)
+                camera.setMatrix(camMat);
                 #endif
             }
         }
