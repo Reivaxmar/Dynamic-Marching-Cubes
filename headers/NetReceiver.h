@@ -5,6 +5,7 @@
 #include <mutex>
 #include <thread>
 #include <iostream>
+#include <tuple>
 
 #include <asio.hpp>
 #include <glm/vec3.hpp>
@@ -19,12 +20,13 @@ class NetReceiver {
 public:
     NetReceiver(unsigned short port);
     ~NetReceiver();
-    void GetPointCloud(std::vector<glm::vec4>& points, glm::mat4& camMat);
+    bool GetPointCloud(glm::mat4& camMat, std::vector<glm::vec4>& points, std::vector<glm::vec4>& colors);
     bool IsCalibrating();
 
 private:
     bool done = false, isCalibrating = false;
-    std::queue<std::pair<glm::mat4, std::vector<glm::vec4>>> PCqueue;
+    // Camera, position and color
+    std::queue<std::tuple<glm::mat4, std::vector<glm::vec4>, std::vector<glm::vec4>>> PCqueue;
     std::mutex queueMutex;
     std::thread dataThread;
 

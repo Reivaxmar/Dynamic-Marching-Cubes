@@ -32,15 +32,18 @@ NetReceiver::~NetReceiver() {
         dataThread.join();
 }
 
-void NetReceiver::GetPointCloud(std::vector<glm::vec4>& points, glm::mat4& camMat) {
+bool NetReceiver::GetPointCloud(glm::mat4& camMat, std::vector<glm::vec4>& points, std::vector<glm::vec4>& colors) {
     // Lock the queue
     std::unique_lock<std::mutex> lock(queueMutex);
     // Check if there's anything new
     if (!PCqueue.empty()) {
-        camMat = PCqueue.front().first;
-        points = std::move(PCqueue.front().second);
+        camMat = std::get<0>(PCqueue.front());
+        points = std::move(std::get<1>(PCqueue.front()));
+        colors = std::move(std::get<2>(PCqueue.front()));
         PCqueue.pop();
+        return true;
     }
+    return false;
 }
 
 bool NetReceiver::IsCalibrating() {
@@ -80,9 +83,13 @@ bool NetReceiver::readPointCloud() {
     uint32_t pointCount;
     if (!read_exact(socket, &pointCount, 4)) return false;
 
-    // Read points
+    // Read point positions
     std::vector<glm::vec3> points(pointCount);
     if (!read_exact(socket, points.data(), pointCount * sizeof(glm::vec3))) return false;
+
+    // Read point colors
+    std::vector<glm::vec3> colors(pointCount);
+    if (!read_exact(socket, colors.data(), pointCount * sizeof(glm::vec3))) return false;
 
     if(isCalibrating) {
         // Update bounding box
@@ -110,9 +117,10 @@ bool NetReceiver::readPointCloud() {
                     glm::translate(glm::mat4(1.0f), offset);
 
         // Transform all points
-        std::vector<glm::vec4> points4(pointCount);
+        std::vector<glm::vec4> points4(pointCount), colors4(pointCount);
         for (int i = 0; i < pointCount; i++) {
             points4[i] = transform * glm::vec4(points[i], 1.0f);
+            colors4[i] = glm::vec4(colors[i], 1.0f);
         }
 
         // Transform camera position
@@ -121,7 +129,7 @@ bool NetReceiver::readPointCloud() {
         // Push to queue
         {
             std::lock_guard<std::mutex> lock(queueMutex);
-            PCqueue.push(std::move(std::make_pair(camMat, points4)));
+            PCqueue.push(std::move(std::make_tuple(camMat, points4, colors4)));
         }
     }
 
