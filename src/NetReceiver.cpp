@@ -32,14 +32,15 @@ NetReceiver::~NetReceiver() {
         dataThread.join();
 }
 
-bool NetReceiver::GetPointCloud(glm::mat4& camMat, std::vector<glm::vec4>& points, std::vector<glm::vec4>& colors) {
+bool NetReceiver::GetPointCloud(glm::mat4& camMat, std::vector<Point>& points) {
     // Lock the queue
     std::unique_lock<std::mutex> lock(queueMutex);
     // Check if there's anything new
     if (!PCqueue.empty()) {
-        camMat = std::get<0>(PCqueue.front());
-        points = std::move(std::get<1>(PCqueue.front()));
-        colors = std::move(std::get<2>(PCqueue.front()));
+        camMat = PCqueue.front().first;
+        points = std::move(PCqueue.front().second);
+        // points = std::move(std::get<1>(PCqueue.front()));
+        // colors = std::move(std::get<2>(PCqueue.front()));
         PCqueue.pop();
         return true;
     }
@@ -74,8 +75,6 @@ bool NetReceiver::readPointCloud() {
     if (!read_exact(socket, &timestamp, 8)) return false;
 
     // Read camera matrix
-    // glm::vec3 camPos;
-    // if (!read_exact(socket, &camPos, sizeof(camPos))) return false;
     glm::mat4 camMat;
     if (!read_exact(socket, &camMat, sizeof(camMat))) return false;
 
@@ -117,10 +116,13 @@ bool NetReceiver::readPointCloud() {
                     glm::translate(glm::mat4(1.0f), offset);
 
         // Transform all points
-        std::vector<glm::vec4> points4(pointCount), colors4(pointCount);
+        // std::vector<glm::vec4> points4(pointCount), colors4(pointCount);
+        std::vector<Point> point_cloud(pointCount);
         for (int i = 0; i < pointCount; i++) {
-            points4[i] = transform * glm::vec4(points[i], 1.0f);
-            colors4[i] = glm::vec4(colors[i], 1.0f);
+            point_cloud[i] = Point {
+                transform * glm::vec4(points[i], 1.0f),
+                glm::vec4(colors[i], 1.0f)
+            };
         }
 
         // Transform camera position
@@ -129,7 +131,8 @@ bool NetReceiver::readPointCloud() {
         // Push to queue
         {
             std::lock_guard<std::mutex> lock(queueMutex);
-            PCqueue.push(std::move(std::make_tuple(camMat, points4, colors4)));
+            // PCqueue.push(std::move(std::make_tuple(camMat, points4, colors4)));
+            PCqueue.push(std::move(std::make_pair(camMat, point_cloud)));
         }
     }
 

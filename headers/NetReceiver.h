@@ -14,19 +14,22 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/norm.hpp>
 
+#include "Definitions.h"
+
 using asio::ip::tcp;
 
 class NetReceiver {
 public:
     NetReceiver(unsigned short port);
     ~NetReceiver();
-    bool GetPointCloud(glm::mat4& camMat, std::vector<glm::vec4>& points, std::vector<glm::vec4>& colors);
+    bool GetPointCloud(glm::mat4& camMat, std::vector<Point>& points);
     bool IsCalibrating();
 
 private:
     bool done = false, isCalibrating = false;
     // Camera, position and color
-    std::queue<std::tuple<glm::mat4, std::vector<glm::vec4>, std::vector<glm::vec4>>> PCqueue;
+    // std::queue<std::tuple<glm::mat4, std::vector<glm::vec4>, std::vector<glm::vec4>>> PCqueue;
+    std::queue<std::pair<glm::mat4, std::vector<Point>>> PCqueue;
     std::mutex queueMutex;
     std::thread dataThread;
 

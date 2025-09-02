@@ -69,15 +69,18 @@ int main() {
 
         if(!network.IsCalibrating()) {
             // Get latest point cloud data from the device
-            std::vector<glm::vec4> points, colors;
+            std::vector<Point> point_cloud;
+            // std::vector<glm::vec4> points, colors;
             glm::mat4 camMat;
     
             // If there's something new, update the mesh
-            if(network.GetPointCloud(camMat, points, colors)) {
+            if(network.GetPointCloud(camMat, point_cloud)) {
                 #ifdef DEBUG_POINTS
-                all_points.insert(all_points.end(), points.begin(), points.end());
+                std::vector<glm::vec4> test(point_cloud.size());
+                for(int i = 0; i < test.size(); i++) test[i] = point_cloud[i].pos; 
+                all_points.insert(all_points.end(), test.begin(), test.end());
                 #else
-                MarchingCubes.processPoints(points, glm::vec3(camMat[3]));
+                MarchingCubes.processPoints(point_cloud, glm::vec3(camMat[3]));
                 // Follow the scanner camera
                 camera.setMatrix(camMat);
                 #endif

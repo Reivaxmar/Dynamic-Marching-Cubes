@@ -1,21 +1,21 @@
 #include "DynamicMC.h"
 
 DynamicMC::DynamicMC()
-    : point_buffer(EXPECTED_CAPACITY, 4)
+    : point_buffer(EXPECTED_CAPACITY, 0)
     , tsdf_tex(GRIDSIZE, GL_R32F, GL_RED, GL_FLOAT)
     , weight_tex(GRIDSIZE, GL_R32F, GL_RED, GL_FLOAT)
-    , edgeTableSSBO(std::vector<int>(edgeTable, edgeTable + 256), 7)
-    , triTableSSBO(std::vector<int>(triTable[0], triTable[0] + 256 * 16), 8)
-    , vertexSSBO(GRIDSIZE.x * GRIDSIZE.y * GRIDSIZE.z * 15, 9, GL_DYNAMIC_DRAW)
-    , normalSSBO(GRIDSIZE.x * GRIDSIZE.y * GRIDSIZE.z * 15, 10, GL_DYNAMIC_DRAW)
-    , counterSSBO(1, 11, GL_DYNAMIC_DRAW)
+    , edgeTableSSBO(std::vector<int>(edgeTable, edgeTable + 256), 4)
+    , triTableSSBO(std::vector<int>(triTable[0], triTable[0] + 256 * 16), 5)
+    , vertexSSBO(GRIDSIZE.x * GRIDSIZE.y * GRIDSIZE.z * 15, 6, GL_DYNAMIC_DRAW)
+    , normalSSBO(GRIDSIZE.x * GRIDSIZE.y * GRIDSIZE.z * 15, 7, GL_DYNAMIC_DRAW)
+    , counterSSBO(1, 8, GL_DYNAMIC_DRAW)
     , pointProcess("assets/shaders/processPoints.comp")
     , mcShader("assets/shaders/marchingCubes.comp")
     {
     
     // Bind the texture
-    tsdf_tex.bindImageUnit(5, GL_READ_WRITE);
-    weight_tex.bindImageUnit(6, GL_READ_WRITE);
+    tsdf_tex.bindImageUnit(1, GL_READ_WRITE);
+    weight_tex.bindImageUnit(2, GL_READ_WRITE);
     
     // Reset the counter
     counterSSBO.setData({0});
@@ -54,9 +54,10 @@ DynamicMC::DynamicMC()
 
 DynamicMC::~DynamicMC() {}
 
-void DynamicMC::processPoints(const std::vector<glm::vec4>& point_cloud, const glm::vec3& camPos) {
+void DynamicMC::processPoints(const std::vector<Point>& point_cloud, const glm::vec3& camPos) {
     // Upload to the GPU the data
     point_buffer.setData(point_cloud);
+    
 
     // Beginning point distance
     pointProcess.Activate();
@@ -84,7 +85,7 @@ void DynamicMC::updateMesh() {
     // Beginning Marching Cubes
     mcShader.Activate();
 
-    tsdf_tex.bind(5);
+    tsdf_tex.bind(1);
 
     glUniform1i(glGetUniformLocation(mcShader.ID, "dist_sampler"), 5);
 

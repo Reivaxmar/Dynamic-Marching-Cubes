@@ -14,27 +14,29 @@ public:
     DynamicMC();
     ~DynamicMC();
 
-    void processPoints(const std::vector<glm::vec4>& point_cloud, const glm::vec3& camPos);
+    void processPoints(const std::vector<Point>& point_cloud, const glm::vec3& camPos);
     void updateMesh();
 
     void Draw(bool drawGrid = true);
 
 private:
-    // BINDING 4: SSBO for point data
-    GLwrap::SSBO<glm::vec4> point_buffer;
-    // BINDING 5: 3D texture for TSDF
+    // BINDING 0: SSBO for point data
+    GLwrap::SSBO<Point> point_buffer;
+    // BINDING 1: 3D texture for TSDF
     GLwrap::Texture3D tsdf_tex;
-    // BINDING 6: 3D texture for TSDF weight
+    // BINDING 2: 3D texture for TSDF weight
     GLwrap::Texture3D weight_tex;
-    // BINDING 7: SSBO for lookup marching cubes edges
+    // BINDING 3: 3D texture for TSDF color
+    GLwrap::Texture3D color_tex;
+    // BINDING 4: SSBO for lookup marching cubes edges
     GLwrap::SSBO<int> edgeTableSSBO;
-    // BINDING 8: SSBO for lookup marching cubes triangles
+    // BINDING 5: SSBO for lookup marching cubes triangles
     GLwrap::SSBO<int> triTableSSBO;
-    // BINDING 9: SSBO for storing the vertex position
+    // BINDING 6: SSBO for storing the vertex position
     GLwrap::SSBO<glm::vec4> vertexSSBO;
-    // BINDING 10: SSBO for storing the vertex normal
+    // BINDING 7: SSBO for storing the vertex normal
     GLwrap::SSBO<glm::vec4> normalSSBO;
-    // BINDING 11: SSBO for keeping track of the current vertex store index
+    // BINDING 8: SSBO for keeping track of the current vertex store index
     GLwrap::SSBO<unsigned int> counterSSBO;
 
     // Compute shader for calculating the distance field

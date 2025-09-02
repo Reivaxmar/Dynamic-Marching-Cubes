@@ -2,6 +2,7 @@
 #define DEFINITIONS_H
 
 #include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
 
 // #define DEBUG_POINTS // Show points instead of Marching Cubes
 
@@ -16,5 +17,10 @@ extern const int triTable[256][16];
 
 // Table for grid cube
 extern const glm::vec3 gridCubeVerts[24];
+
+// Structure for storing point cloud data
+struct Point {
+    glm::vec4 pos, color;
+};
 
 #endif

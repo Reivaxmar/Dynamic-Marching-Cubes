@@ -1,30 +1,30 @@
 #version 430 core
 
 // 3D distance field (scalar stored in .r)
-layout(binding = 5) uniform sampler3D dist_sampler;
+layout(binding = 1) uniform sampler3D dist_sampler;
 
 // Generated vertices position SSBO (vec4: xyz position, w unused or 1.0)
-layout(std430, binding = 9) buffer Vertices {
+layout(std430, binding = 6) buffer Vertices {
     vec4 verts[]; // output vertices
 };
 
 // Generated vertices normal SSBO (vec4: xyz position, w unused or 1.0)
-layout(std430, binding = 10) buffer Normals {
+layout(std430, binding = 7) buffer Normals {
     vec4 normals[]; // output normals
 };
 
 // Atomic-like counter stored in a SSBO.
-layout(std430, binding = 11) buffer Counter {
+layout(std430, binding = 8) buffer Counter {
     uint counter[]; // counter[0] is the global vertex counter
 };
 
 // edgeTable: 256 ints
-layout(std430, binding = 7) buffer EdgeTable {
+layout(std430, binding = 4) buffer EdgeTable {
     int edgeTableArr[]; // length 256
 };
 
 // triTable: flattened 256 x 16 ints (row-major): triTableArr[cubeIndex*16 + i]
-layout(std430, binding = 8) buffer TriTable {
+layout(std430, binding = 5) buffer TriTable {
     int triTableArr[]; // length 256 * 16
 };
 

@@ -1,13 +1,19 @@
 #version 430 core
 
+struct Point {
+    vec4 pos;
+    vec4 color;
+}; 
+
 // Get the point positions
-layout(std430, binding = 4) buffer Positions {
-    vec3 points[];
+layout(std430, binding = 0) buffer Positions {
+    Point points[];
 };
 
 // TSDF and weight volumes
-layout(binding = 5, r32f) uniform coherent image3D tsdf_tex;
-layout(binding = 6, r32f) uniform coherent image3D weight_tex;
+layout(binding = 1, r32f) uniform coherent image3D tsdf_tex;
+layout(binding = 2, r32f) uniform coherent image3D weight_tex;
+layout(binding = 3, r32f) uniform coherent image3D weight_tex;
 
 // Process 8 points per work group
 layout (local_size_x = 8, local_size_y = 1, local_size_z = 1) in;
