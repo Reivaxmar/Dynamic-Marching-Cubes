@@ -20,9 +20,9 @@ Just some basic stuff:
 Download a zip file or clone the repository:
 ```bash
 > git clone \
-    https://github.com/Reivaxmar/TR-Dynamic-Marching-Cubes.git \
-    TR-Dynamic-Marching-Cubes
-> cd TR-Dynamic-Marching-Cubes
+    https://github.com/Reivaxmar/Dynamic-Marching-Cubes.git \
+    Dynamic-Marching-Cubes
+> cd Dynamic-Marching-Cubes
 ```
 
 Great! Now that the project is downloaded, it must be built:
