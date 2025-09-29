@@ -2,7 +2,9 @@
 This project is the server program where it receives data from a 3D scanner and dynamically
 updates a 3D mesh with Marching Cubes.
 
-This project is part of my '_Treball de Recerca_', a project that must be done in Catalonia for graduating '_Batxillerat_' (last two high school years)
+This program requires data to be sent via TCP, specifically point cloud data. For this purpose, a separate Swift application has been made, which sends point cloud data from the compatible iOS devices to this program. The Swift application can be found here: https://github.com/Reivaxmar/ios-point-cloud-sender.git.
+
+This project is part of my '_Treball de Recerca_', a project that must be done in Catalonia for graduating from high school.
 
 ## Screenshots
 _Add screenshots..._
@@ -29,7 +31,7 @@ Great! Now that the project is downloaded, it must be built:
 > ./MarchingCubes
 ```
 
-Now the server should be up and running.
+Now the server and viewer should be up and running.
 
 
 ## External libraries
