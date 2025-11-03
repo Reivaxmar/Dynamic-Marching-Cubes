@@ -89,7 +89,7 @@ void DynamicMC::updateMesh() {
     glUniform1i(glGetUniformLocation(mcShader.ID, "dist_sampler"), 5);
 
     // Set uniforms
-    glUniform1f(glGetUniformLocation(mcShader.ID, "isoLevel"), 0.5f);
+    glUniform1f(glGetUniformLocation(mcShader.ID, "isoLevel"), 0.f);
     glUniform3f(glGetUniformLocation(mcShader.ID, "gridScale"), 1.0f, 1.0f, 1.0f);
     glUniform3i(glGetUniformLocation(mcShader.ID, "gridSize"), GRIDSIZE.x, GRIDSIZE.y, GRIDSIZE.z);
     

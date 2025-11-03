@@ -160,10 +160,9 @@ void main() {
         verts[baseIndex + 2] = vec4(edgeVert[e2], 1.0);
 
         // Compute normals from gradient of dist_tex
-        // - sign because idk why is inverted
-        vec3 n0 = -normalize(sampleGradient(edgeVert[e0]));
-        vec3 n1 = -normalize(sampleGradient(edgeVert[e1]));
-        vec3 n2 = -normalize(sampleGradient(edgeVert[e2]));
+        vec3 n0 = normalize(sampleGradient(edgeVert[e0]));
+        vec3 n1 = normalize(sampleGradient(edgeVert[e1]));
+        vec3 n2 = normalize(sampleGradient(edgeVert[e2]));
 
         // Write vertex normals
         normals[baseIndex + 0] = vec4(n0, 0.0);
