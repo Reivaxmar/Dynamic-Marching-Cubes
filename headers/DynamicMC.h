@@ -14,7 +14,7 @@ public:
     DynamicMC();
     ~DynamicMC();
 
-    void processPoints(const std::vector<glm::vec4>& point_cloud, const glm::vec3& camPos);
+    void processPoints(const std::vector<glm::vec4>& point_cloud, const std::vector<glm::vec4>& colors, const glm::vec3& camPos);
     void updateMesh();
 
     void Draw(bool drawGrid = true);
@@ -36,6 +36,12 @@ private:
     GLwrap::SSBO<glm::vec4> normalSSBO;
     // BINDING 11: SSBO for keeping track of the current vertex store index
     GLwrap::SSBO<unsigned int> counterSSBO;
+    // BINDING 12: 3D texture for TSDF color
+    GLwrap::Texture3D color_tex;
+    // BINDING 13: SSBO for point color data
+    GLwrap::SSBO<glm::vec4> color_buffer;
+    // BINDING 14: SSBO for storing the vertex color
+    GLwrap::SSBO<glm::vec4> colorSSBO;
 
     // Compute shader for calculating the distance field
     GLwrap::ComputeShader pointProcess;

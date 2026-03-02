@@ -1,4 +1,5 @@
 #include "NetReceiver.h"
+#include "Definitions.h"
 
 NetReceiver::NetReceiver(unsigned short port)
     : work_guard(asio::make_work_guard(io))
@@ -104,7 +105,7 @@ bool NetReceiver::readPointCloud() {
         // Compute uniform scale and offset
         glm::vec3 bbSize = maxBB - minBB;
         float maxDim = std::max({bbSize.x, bbSize.y, bbSize.z});
-        float scale = (maxDim > 0.0f) ? (128.0f / maxDim) : 1.0f;
+        float scale = (maxDim > 0.0f) ? (GRIDSIZE.x / maxDim) : 1.0f;
         glm::vec3 offset = -minBB;
 
         // Build transformation matrix

@@ -5,9 +5,9 @@
 
 // #define DEBUG_POINTS // Show points instead of Marching Cubes
 
-const glm::ivec3 GRIDSIZE = { 128, 128, 128 };
+const glm::ivec3 GRIDSIZE = { 256, 256, 256 };
 const float ZERO = 0.0f;
-const float RADIUS_SIZE = 1.0f;
+const float RADIUS_SIZE = 2.0f;
 const int EXPECTED_CAPACITY = 50000; // 50k points per frame
 
 // Marching cubes tables. Source: https://paulbourke.net/geometry/polygonise/

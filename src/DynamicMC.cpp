@@ -9,6 +9,9 @@ DynamicMC::DynamicMC()
     , vertexSSBO(GRIDSIZE.x * GRIDSIZE.y * GRIDSIZE.z * 15, 9, GL_DYNAMIC_DRAW)
     , normalSSBO(GRIDSIZE.x * GRIDSIZE.y * GRIDSIZE.z * 15, 10, GL_DYNAMIC_DRAW)
     , counterSSBO(1, 11, GL_DYNAMIC_DRAW)
+    , color_tex(GRIDSIZE, GL_RGBA16F, GL_RGBA, GL_FLOAT)
+    , color_buffer(EXPECTED_CAPACITY, 13)
+    , colorSSBO(GRIDSIZE.x * GRIDSIZE.y * GRIDSIZE.z * 15, 14, GL_DYNAMIC_DRAW)
     , pointProcess("assets/shaders/processPoints.comp")
     , mcShader("assets/shaders/marchingCubes.comp")
     {
@@ -16,6 +19,11 @@ DynamicMC::DynamicMC()
     // Bind the texture
     tsdf_tex.bindImageUnit(5, GL_READ_WRITE);
     weight_tex.bindImageUnit(6, GL_READ_WRITE);
+    color_tex.bindImageUnit(12, GL_READ_WRITE);
+    // Initialize TSDF to far (1.0) and weights to zero so integration starts clean
+    tsdf_tex.clear(glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
+    weight_tex.clear(glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
+    color_tex.clear(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
     
     // Reset the counter
     counterSSBO.setData({0});
@@ -34,6 +42,11 @@ DynamicMC::DynamicMC()
     glBindBuffer(GL_ARRAY_BUFFER, normalSSBO.getID());
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
+
+    // Bind the colors to the VAO
+    glBindBuffer(GL_ARRAY_BUFFER, colorSSBO.getID());
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
 
     // Unbind
     glBindVertexArray(0);
@@ -54,9 +67,10 @@ DynamicMC::DynamicMC()
 
 DynamicMC::~DynamicMC() {}
 
-void DynamicMC::processPoints(const std::vector<glm::vec4>& point_cloud, const glm::vec3& camPos) {
+void DynamicMC::processPoints(const std::vector<glm::vec4>& point_cloud, const std::vector<glm::vec4>& colors, const glm::vec3& camPos) {
     // Upload to the GPU the data
     point_buffer.setData(point_cloud);
+    color_buffer.setData(colors);
 
     // Beginning point distance
     pointProcess.Activate();
@@ -66,7 +80,8 @@ void DynamicMC::processPoints(const std::vector<glm::vec4>& point_cloud, const g
     glUniform1i(glGetUniformLocation(pointProcess.ID, "numElements"), (int)point_cloud.size());
     glUniform1i(glGetUniformLocation(pointProcess.ID, "truncDist"), (int)RADIUS_SIZE);
     glUniform3f(glGetUniformLocation(pointProcess.ID, "camPos"), camPos.x, camPos.y, camPos.z);
-    glUniform1i(glGetUniformLocation(pointProcess.ID, "maxWeight"), 1);
+    // Use a max weight > 1 so the shader computes a proper weighted average
+    glUniform1i(glGetUniformLocation(pointProcess.ID, "maxWeight"), 32);
     glUniform1i(glGetUniformLocation(pointProcess.ID, "useNeighborhood"), GL_TRUE);
     glUniform3i(glGetUniformLocation(pointProcess.ID, "gridResolution"), GRIDSIZE.x, GRIDSIZE.y, GRIDSIZE.z);
 
@@ -85,6 +100,7 @@ void DynamicMC::updateMesh() {
     mcShader.Activate();
 
     tsdf_tex.bind(5);
+    color_tex.bind(12);
 
     glUniform1i(glGetUniformLocation(mcShader.ID, "dist_sampler"), 5);
 

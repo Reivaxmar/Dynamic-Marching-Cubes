@@ -38,22 +38,6 @@ int main() {
     double updTime = 0.25; // Update MC mesh time interval
 
 
-#ifdef DEBUG_POINTS
-
-    std::vector<glm::vec4> all_points;
-
-    GLuint particleVAO = 0, particleVBO = 0;
-    glGenVertexArrays(1, &particleVAO);
-    glGenBuffers(1, &particleVBO);
-    glBindVertexArray(particleVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, particleVBO);
-    glBufferData(GL_ARRAY_BUFFER, EXPECTED_CAPACITY * sizeof(glm::vec4), nullptr, GL_DYNAMIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
-    glBindVertexArray(0);
-
-#endif
-
     while(!window.shouldClose()) {
         // Poll events
         window.pollEvents();
@@ -74,13 +58,9 @@ int main() {
     
             // If there's something new, update the mesh
             if(network.GetPointCloud(camMat, points, colors)) {
-                #ifdef DEBUG_POINTS
-                all_points.insert(all_points.end(), points.begin(), points.end());
-                #else
-                MarchingCubes.processPoints(points, glm::vec3(camMat[3]));
+                MarchingCubes.processPoints(points, colors, glm::vec3(camMat[3]));
                 // Follow the scanner camera
                 camera.setMatrix(camMat);
-                #endif
             }
         }
 

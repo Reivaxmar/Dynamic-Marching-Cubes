@@ -13,8 +13,7 @@
 
 #include <cmath>
 
-namespace GLwrap
-{
+namespace GLwrap {
     class Camera {
     public:
         Camera(glm::vec3 position = glm::vec3(0));

@@ -5,9 +5,15 @@ layout(std430, binding = 4) buffer Positions {
     vec3 points[];
 };
 
+// Get the point colors
+layout(std430, binding = 13) buffer Colors {
+    vec3 colors[];
+};
+
 // TSDF and weight volumes
-layout(binding = 5, r32f) uniform coherent image3D tsdf_tex;
-layout(binding = 6, r32f) uniform coherent image3D weight_tex;
+layout(binding =  5, r32f) uniform coherent image3D tsdf_tex;
+layout(binding =  6, r32f) uniform coherent image3D weight_tex;
+layout(binding = 12, rgba16f) uniform coherent image3D color_tex;
 
 // Process 8 points per work group
 layout (local_size_x = 8, local_size_y = 1, local_size_z = 1) in;
@@ -19,39 +25,37 @@ uniform vec3 camPos;
 uniform int maxWeight;
 uniform bool useNeighborhood;
 
-// Grid resolution is fixed (e.g., 128^3)
-uniform ivec3 gridResolution; // should be ivec3(128)
+// Grid resolution
+uniform ivec3 gridResolution;
 
-// Compute truncated signed distance in [-1,1] given voxel center and point
 float tsdfSample(vec3 p, vec3 c, vec3 cam) {
-    vec3 v_cam2surf = normalize(p - cam);
-    float dist = length(c - p);
     float mu = float(max(1, truncDist));
-    float phi = clamp(dist / mu, 0.0, 1.0);
-    float s = sign(dot(v_cam2surf, c - p));
-    if (s == 0.0) s = 1.0;
-    return s * (1.0 - phi);
-}
-
-// Load TSDF fusion parameters
-void loadTw(ivec3 vidx, out float tsdf, out float w) {
-    tsdf = imageLoad(tsdf_tex, vidx).r;
-    w    = imageLoad(weight_tex, vidx).r;
-}
-
-// Store TSDF fusion parameters
-void storeTw(ivec3 vidx, float tsdf, float w) {
-    imageStore(tsdf_tex,   vidx, vec4(tsdf, 0, 0, 0));
-    imageStore(weight_tex, vidx, vec4(w,    0, 0, 0));
+    float d_voxel   = length(c - cam);
+    float d_surface = length(p - cam);
+    float sdf = d_voxel - d_surface;
+    return clamp(sdf / mu, -1.0, 1.0);
 }
 
 // Integrate new TSDF point
-void integrateAt(ivec3 vidx, float obs) {
-    float tsdf_old, w_old;
-    loadTw(vidx, tsdf_old, w_old);
-    float w_new    = min(w_old + 1.0, float(maxWeight));
-    float tsdf_new = (tsdf_old * w_old + obs) / w_new;
-    storeTw(vidx, tsdf_new, w_new);
+void integrateAt(ivec3 vidx, float obs, vec3 obsColor) {
+
+    float tsdf_old = imageLoad(tsdf_tex, vidx).r;
+    float w_old    = imageLoad(weight_tex, vidx).r;
+    vec3  col_old  = imageLoad(color_tex, vidx).rgb;
+
+    float w_inc = (w_old < float(maxWeight)) ? 1.0 : 0.0;
+    float w_new = w_old + w_inc;
+
+    float tsdf_new = (tsdf_old * w_old + obs * w_inc) / max(w_new, 1e-6);
+    vec3  col_new  = col_old;
+
+    if (abs(obs) < 1.0 && w_inc > 0.0) {
+        col_new = (col_old * w_old + obsColor) / w_new;
+    }
+
+    imageStore(tsdf_tex,   vidx, vec4(tsdf_new, 0, 0, 0));
+    imageStore(weight_tex, vidx, vec4(w_new,    0, 0, 0));
+    imageStore(color_tex,  vidx, vec4(col_new,  1.0));
 }
 
 void main() {
@@ -60,6 +64,7 @@ void main() {
 
     // Points are already in voxel coordinates (0..gridResolution)
     vec3 p = points[i];
+    vec3 obsColor = colors[i];
 
     ivec3 v0 = ivec3(floor(p));
     if (any(lessThan(v0, ivec3(0))) || any(greaterThanEqual(v0, gridResolution))) return;
@@ -67,10 +72,11 @@ void main() {
     // Center of voxel in voxel coordinates (voxel size = 1)
     vec3 c0 = vec3(v0) + vec3(0.5);
     float obs = tsdfSample(p, c0, camPos);
-    integrateAt(v0, obs);
+    integrateAt(v0, obs, colors[i]);
 
     if (useNeighborhood) {
         int r = max(1, truncDist);
+        float r2 = float(r * r);
         for (int dz = -r; dz <= r; ++dz) {
             for (int dy = -r; dy <= r; ++dy) {
                 for (int dx = -r; dx <= r; ++dx) {
@@ -82,11 +88,12 @@ void main() {
 
                     // Check truncation distance
                     vec3 c = vec3(v) + vec3(0.5);
-                    if (length(c - p) > float(truncDist)) continue;
+                    vec3 diff = c - p;
+                    if (dot(diff, diff) > r2) continue; // Too far
 
                     // Integrate TSDF
                     float obsN = tsdfSample(p, c, camPos);
-                    integrateAt(v, obsN);
+                    integrateAt(v, obsN, obsColor);
                 }
             }
         }
