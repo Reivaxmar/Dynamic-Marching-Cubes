@@ -81,7 +81,7 @@ void DynamicMC::processPoints(const std::vector<glm::vec4>& point_cloud, const s
     glUniform1i(glGetUniformLocation(pointProcess.ID, "truncDist"), (int)RADIUS_SIZE);
     glUniform3f(glGetUniformLocation(pointProcess.ID, "camPos"), camPos.x, camPos.y, camPos.z);
     // Use a max weight > 1 so the shader computes a proper weighted average
-    glUniform1i(glGetUniformLocation(pointProcess.ID, "maxWeight"), 32);
+    glUniform1i(glGetUniformLocation(pointProcess.ID, "maxWeight"), 128);
     glUniform1i(glGetUniformLocation(pointProcess.ID, "useNeighborhood"), GL_TRUE);
     glUniform3i(glGetUniformLocation(pointProcess.ID, "gridResolution"), GRIDSIZE.x, GRIDSIZE.y, GRIDSIZE.z);
 
